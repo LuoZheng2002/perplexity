@@ -1,0 +1,121 @@
+
+============================================================
+STEP 2: Preparing Answer Pairs
+============================================================
+
+Loading and parsing datasets...
+Loading dataset for language: en...
+Processing 20/11478 samples...
+Successfully loaded and normalized 20 samples
+Loading dataset for language: zh_cn...
+Processing 20/11478 samples...
+Successfully loaded and normalized 20 samples
+Loading dataset for language: en...
+Processing 20/11478 samples...
+Successfully loaded and normalized 20 samples
+Dataset sizes: en=20, zh_cn=20, en=20
+Created 20 answer pairs comparing zh_cn vs en (with English questions)
+
+Example pair:
+Question (en): Statement 1 | A factor group of a non-Abelian group is non-Abelian. Statement 2 | If K is a normal subgroup of H and H is a normal subgroup of G, then K is a normal subgroup of G.
+Answer 1 (zh_cn): 假，假
+Answer 2 (en): False, False
+
+============================================================
+STEP 3: Initializing Model and Tokenizer
+============================================================
+Loading model: Qwen/Qwen2.5-7B-Instruct
+Using device: cuda
+
+============================================================
+STEP 4: Collecting Preferences
+============================================================
+
+Collecting preferences using local LLM: Qwen/Qwen2.5-7B-Instruct
+Results will be written to preferences_local.jsonl
+  Warning: Could not parse answer for sample 0, setting preference to 0
+  Warning: Could not parse answer for sample 1, setting preference to 0
+  Warning: Could not parse answer for sample 3, setting preference to 0
+  Warning: Could not parse answer for sample 4, setting preference to 0
+  Processed 5/20 samples
+  Warning: Could not parse answer for sample 5, setting preference to 0
+  Warning: Could not parse answer for sample 6, setting preference to 0
+  Warning: Could not parse answer for sample 7, setting preference to 0
+  Warning: Could not parse answer for sample 8, setting preference to 0
+  Processed 10/20 samples
+  Warning: Could not parse answer for sample 10, setting preference to 0
+  Warning: Could not parse answer for sample 12, setting preference to 0
+  Warning: Could not parse answer for sample 14, setting preference to 0
+  Processed 15/20 samples
+  Warning: Could not parse answer for sample 16, setting preference to 0
+  Warning: Could not parse answer for sample 17, setting preference to 0
+  Warning: Could not parse answer for sample 18, setting preference to 0
+  Warning: Could not parse answer for sample 19, setting preference to 0
+  Processed 20/20 samples
+Collected 20 valid preferences
+
+============================================================
+STEP 5: Calculating Perplexities
+============================================================
+
+Calculating perplexities using local LLM: Qwen/Qwen2.5-7B-Instruct
+Results will be written to perplexities_local.jsonl
+  Processed 5/20 samples
+  Processed 10/20 samples
+  Processed 15/20 samples
+  Processed 20/20 samples
+Calculated perplexities for 20 samples
+
+============================================================
+STEP 6: Analyzing Results
+============================================================
+
+============================================================
+RESULTS COMPARISON
+============================================================
+
+Total valid comparisons: 20
+
+Preference Method (which answer LLM judges as better):
+  zh_cn answers preferred: 1/20 = 5.00%
+  en answers preferred: 19/20 = 95.00%
+
+Perplexity Method (which answer has lower perplexity):
+  zh_cn answers have lower perplexity: 2/20 = 10.00%
+  en answers have lower perplexity: 18/20 = 90.00%
+
+Agreement between methods:
+  2/20 = 10.00%
+
+Correlation statistics:
+  Pearson correlation: -0.642 (p=0.0023)
+  Spearman correlation: -0.612 (p=0.0041)
+
+============================================================
+
+Example comparisons (first 5):
+
+Sample 0:
+  Preference method chose: en
+  Perplexity method chose: en
+  Match: ✗
+
+Sample 1:
+  Preference method chose: en
+  Perplexity method chose: en
+  Match: ✗
+
+Sample 2:
+  Preference method chose: zh_cn
+  Perplexity method chose: en
+  Match: ✗
+
+Sample 3:
+  Preference method chose: en
+  Perplexity method chose: en
+  Match: ✗
+
+Sample 4:
+  Preference method chose: en
+  Perplexity method chose: en
+  Match: ✗

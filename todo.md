@@ -15,3 +15,10 @@ ds = load_dataset("willchow66/mmmlu-intersection-filtered", "ar_xy")
 '''
 
 The dataset structure is not determined yet. Print the first few lines to see what it looks like.
+
+
+Current progress: trying to figure out the chat template, where to cut to retrieve the full text and the question text
+See if there is ending special tokens
+
+Feed the full text to model.forward, and grab the probability from start token to end token.
+

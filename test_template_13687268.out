@@ -1,0 +1,14 @@
+Chat text:
+ <|im_start|>system
+You are a helpful assistant.<|im_end|>
+<|im_start|>user
+Please output EXACTLY the following inside the quotation mark without adding anything else: "Hello, nice to meet you!"<|im_end|>
+<|im_start|>assistant
+
+Decoded output:
+<|im_start|>system
+You are a helpful assistant.<|im_end|>
+<|im_start|>user
+Please output EXACTLY the following inside the quotation mark without adding anything else: "Hello, nice to meet you!"<|im_end|>
+<|im_start|>assistant
+"Hello, nice to meet you!"<|im_end|>
