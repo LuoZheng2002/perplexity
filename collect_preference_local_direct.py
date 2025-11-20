@@ -1,7 +1,7 @@
 import json
 import os
 import re
-def collect_preference_local_direct(pairs, model, tokenizer, model_name, output_file="preferences_local.jsonl", device="cuda"):
+def collect_preference_local_direct(pairs, model, tokenizer, model_name, model_interface, output_file="preferences_local.jsonl", device="cuda"):
     """
     Use a local LLM to judge which answer is better.
 
@@ -10,6 +10,7 @@ def collect_preference_local_direct(pairs, model, tokenizer, model_name, output_
         model: Pre-loaded model instance
         tokenizer: Pre-loaded tokenizer instance
         model_name: Hugging Face model name (for logging/identification)
+        model_interface: ModelInterface instance for model-specific behavior
         output_file: Output file for results
         device: Device to use ("cuda" or "cpu")
 
@@ -42,19 +43,19 @@ def collect_preference_local_direct(pairs, model, tokenizer, model_name, output_
             # Skip if already processed
             if i in processed_indices:
                 continue
-            # Present the question with both answers
-            prompt = f"""Given the following question and two answers, which answer is better?
 
-Question: {pair['question']}
-
-Answer 1: {pair['answer_lang1']}
-Answer 2: {pair['answer_lang2']}
-
-Provide your judgment IMMEDIATELY without reasoning or explanation. Provide your final decision in the following format:
-\\boxed{{X}} where X is either 1 or 2."""
             try:
-                # Tokenize the prompt
-                inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1024)
+                # Build formatted prompt using model-specific interface
+                # This includes the chat template and "\\box{" prefix to encourage direct output
+                formatted_prompt = model_interface.build_messages_for_compare_directly(
+                    tokenizer,
+                    pair['question'],
+                    pair['answer_lang1'],
+                    pair['answer_lang2']
+                )
+
+                # Tokenize the formatted prompt
+                inputs = tokenizer(formatted_prompt, return_tensors="pt", truncation=True, max_length=1024)
                 inputs = {k: v.to(device) for k, v in inputs.items()}
 
                 # Generate response

@@ -43,16 +43,39 @@ class ModelInterface(ABC):
         pass
 
     @abstractmethod
-    def build_messages(self, question: str, answer: str) -> List[Dict[str, str]]:
+    def build_messages_for_perplexity(self, tokenizer: Any, question: str, answer: str) -> str:
         """
-        Build the message structure for the conversation.
+        Build the message structure for perplexity calculation and apply chat template.
 
         Args:
+            tokenizer: The model's tokenizer
             question: The user's question
             answer: The assistant's answer
 
         Returns:
-            List of message dictionaries with 'role' and 'content' keys
+            Formatted conversation string after applying chat template
+        """
+        pass
+
+    @abstractmethod
+    def build_messages_for_compare_directly(self, tokenizer: Any, question: str,
+                                           answer1: str, answer2: str) -> str:
+        """
+        Build the message structure for direct comparison and apply chat template.
+
+        This method builds a prompt asking the model to compare two answers,
+        applies the chat template with add_generation_prompt=True, and appends
+        "\\box{" to encourage the model to output the answer directly in the
+        expected format.
+
+        Args:
+            tokenizer: The model's tokenizer
+            question: The user's question
+            answer1: The first answer to compare
+            answer2: The second answer to compare
+
+        Returns:
+            Formatted conversation string after applying chat template with "\\box{" appended
         """
         pass
 

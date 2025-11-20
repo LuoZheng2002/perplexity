@@ -139,18 +139,13 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
         Uses chat template formatting with system, user, and assistant messages.
         Returns perplexity computed as exp(-avg_log_prob).
         """
-        # Build messages for the full conversation using model-specific interface
-        messages = model_interface.build_messages(question, answer)
-
+        # Build formatted conversation text using model-specific interface
         try:
-            # Apply chat template to get the full conversation text
-            full_chat_text = tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=False
+            full_chat_text = model_interface.build_messages_for_perplexity(
+                tokenizer, question, answer
             )
         except Exception as e:
-            print(f"Error applying chat template: {e}")
+            print(f"Error building messages for perplexity: {e}")
             exit(1)
         print("full chat text:\n", full_chat_text)
         print("answer:\n", answer)
@@ -398,5 +393,13 @@ if __name__ == "__main__":
         print(f"Using model interface: {model_interface.__class__.__name__}")
         match config.result_type:
             case ResultType.PREFERENCE_QUALITATIVE_DIRECT:
-                collect_preference_local_direct()
+                collect_preference_local_direct(
+                    pairs=pairs,
+                    model=model,
+                    tokenizer=tokenizer,
+                    model_name=model_name,
+                    model_interface=model_interface,
+                    output_file=f"preferences_local_{config.lang1}_{config.lang2}_{config.subject}.jsonl",
+                    device="cuda"
+                )
 
