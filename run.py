@@ -189,9 +189,36 @@ _global_model = None
 _global_tokenizer = None
 
 if __name__ == "__main__":
+    # Create result directory if it doesn't exist
+    os.makedirs("result", exist_ok=True)
+
     for config in configs:
         print("Processing configuration: ", config)
-        pairs = generate_answer_pair_datasets(lang1=config.lang1, lang2=config.lang2, subject=config.subject)
+
+        # Determine alphabetical order for language codes
+        sorted_langs = sorted([config.lang1, config.lang2])
+        first_lang = sorted_langs[0]
+        second_lang = sorted_langs[1]
+
+        # Load datasets from files
+        dataset_file1 = f"datasets/pair_{first_lang}_correct_{second_lang}_incorrect_{config.subject}.jsonl"
+        dataset_file2 = f"datasets/pair_{first_lang}_incorrect_{second_lang}_correct_{config.subject}.jsonl"
+
+        dataset1 = []
+        dataset2 = []
+
+        with open(dataset_file1, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    dataset1.append(json.loads(line))
+
+        with open(dataset_file2, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    dataset2.append(json.loads(line))
+
+        print(f"Loaded {len(dataset1)} samples from {dataset_file1}")
+        print(f"Loaded {len(dataset2)} samples from {dataset_file2}")
 
         # Get or create model and tokenizer with caching
         model_name = config.model.value
@@ -223,36 +250,42 @@ if __name__ == "__main__":
         # Create model interface for model-specific behavior
         model_interface = create_model_interface(model_name)
         print(f"Using model interface: {model_interface.__class__.__name__}")
-        match config.result_type:
-            case ResultType.PREFERENCE_DIRECT:
-                collect_preference_local_direct(
-                    pairs=pairs,
-                    model=model,
-                    tokenizer=tokenizer,
-                    model_name=model_name,
-                    model_interface=model_interface,
-                    output_file=f"{display_model_name}_{config.lang1}_{config.lang2}_{config.subject}_preferences_local_direct.jsonl",
-                    device="cuda"
-                )
-            case ResultType.PREFERENCE_THINKING:
-                collect_preference_local_thinking(
-                    pairs=pairs,
-                    model=model,
-                    tokenizer=tokenizer,
-                    model_name=model_name,
-                    model_interface=model_interface,
-                    output_file=f"{display_model_name}_{config.lang1}_{config.lang2}_{config.subject}_preferences_local_thinking.jsonl",
-                    device="cuda"
-                )
-            case ResultType.PERPLEXITY:
-                collect_perplexity_local(
-                    pairs=pairs,
-                    model=model,
-                    tokenizer=tokenizer,
-                    model_name=model_name,
-                    model_interface=model_interface,
-                    output_file=f"{display_model_name}_{config.lang1}_{config.lang2}_{config.subject}_perplexities_local.jsonl",
-                    device="cuda"
-                )
+
+        # Process both datasets
+        for dataset, dataset_suffix in [
+            (dataset1, f"{first_lang}_correct_{second_lang}_incorrect"),
+            (dataset2, f"{first_lang}_incorrect_{second_lang}_correct")
+        ]:
+            match config.result_type:
+                case ResultType.PREFERENCE_DIRECT:
+                    collect_preference_local_direct(
+                        pairs=dataset,
+                        model=model,
+                        tokenizer=tokenizer,
+                        model_name=model_name,
+                        model_interface=model_interface,
+                        output_file=f"result/{display_model_name}_{dataset_suffix}_{config.subject}_preferences_local_direct.jsonl",
+                        device="cuda"
+                    )
+                case ResultType.PREFERENCE_THINKING:
+                    collect_preference_local_thinking(
+                        pairs=dataset,
+                        model=model,
+                        tokenizer=tokenizer,
+                        model_name=model_name,
+                        model_interface=model_interface,
+                        output_file=f"result/{display_model_name}_{dataset_suffix}_{config.subject}_preferences_local_thinking.jsonl",
+                        device="cuda"
+                    )
+                case ResultType.PERPLEXITY:
+                    collect_perplexity_local(
+                        pairs=dataset,
+                        model=model,
+                        tokenizer=tokenizer,
+                        model_name=model_name,
+                        model_interface=model_interface,
+                        output_file=f"result/{display_model_name}_{dataset_suffix}_{config.subject}_perplexities_local.jsonl",
+                        device="cuda"
+                    )
         print("Collected results for configuration: ", config)
 
