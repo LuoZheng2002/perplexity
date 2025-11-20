@@ -260,8 +260,8 @@ def prepare_answer_pairs_bilingual(lang1="zh_cn", lang2="en", subject=None, num_
         List of pairs with structure:
         {
             'question': str (English question),
-            'answer_lang1': str (correct answer from lang1),
-            'answer_lang2': str (correct answer from lang2),
+            'answer1': str (correct answer from lang1),
+            'answer2': str (correct answer from lang2),
             'lang1': str (language code),
             'lang2': str (language code),
             'subject': str,
@@ -292,13 +292,13 @@ def prepare_answer_pairs_bilingual(lang1="zh_cn", lang2="en", subject=None, num_
             continue
 
         # Extract correct answers from both language datasets
-        answer_lang1 = sample_lang1['answer']  # Already the correct answer text
-        answer_lang2 = sample_lang2['answer']  # Already the correct answer text
+        answer1 = sample_lang1['answer']  # Already the correct answer text
+        answer2 = sample_lang2['answer']  # Already the correct answer text
 
         pairs.append({
             'question': sample_en['question'],  # Always English
-            'answer_lang1': answer_lang1,
-            'answer_lang2': answer_lang2,
+            'answer1': answer1,
+            'answer2': answer2,
             'lang1': lang1,
             'lang2': lang2,
             'subject': sample_en['subject'],

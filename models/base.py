@@ -43,14 +43,20 @@ class ModelInterface(ABC):
         pass
 
     @abstractmethod
-    def build_messages_for_perplexity(self, tokenizer: Any, question: str, answer: str) -> str:
+    def build_messages_for_perplexity(self, tokenizer: Any, question: str, answer: str,
+                                     language: str) -> str:
         """
         Build the message structure for perplexity calculation and apply chat template.
+
+        The prompt includes language-specific instructions to encourage the model to
+        respond in the target language with concise phrasing. For English, an
+        uncapitalized first word is encouraged.
 
         Args:
             tokenizer: The model's tokenizer
             question: The user's question
             answer: The assistant's answer
+            language: Formal language name (e.g., "Chinese", "English")
 
         Returns:
             Formatted conversation string after applying chat template

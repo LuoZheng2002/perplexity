@@ -99,28 +99,28 @@ def generate_answer_pair_datasets(lang1, lang2, subject):
         incorrect_letter = chr(ord('A') + incorrect_idx)
 
         # Extract correct and incorrect answers from both languages
-        correct_answer_lang1 = sample_lang1['answer']
-        incorrect_answer_lang1 = sample_lang1['choices'][incorrect_letter]
+        correct_answer1 = sample_lang1['answer']
+        incorrect_answer1 = sample_lang1['choices'][incorrect_letter]
 
-        correct_answer_lang2 = sample_lang2['answer']
-        incorrect_answer_lang2 = sample_lang2['choices'][incorrect_letter]
+        correct_answer2 = sample_lang2['answer']
+        incorrect_answer2 = sample_lang2['choices'][incorrect_letter]
 
         # Determine which answer is answer1 and answer2 based on lexicographical order
         # For dataset1 (lang1 correct, lang2 incorrect):
         if first_lang == lang1:
-            answer1_dataset1 = correct_answer_lang1
-            answer2_dataset1 = incorrect_answer_lang2
+            answer1_dataset1 = correct_answer1
+            answer2_dataset1 = incorrect_answer2
         else:
-            answer1_dataset1 = incorrect_answer_lang2
-            answer2_dataset1 = correct_answer_lang1
+            answer1_dataset1 = incorrect_answer2
+            answer2_dataset1 = correct_answer1
 
         # For dataset2 (lang1 incorrect, lang2 correct):
         if first_lang == lang1:
-            answer1_dataset2 = incorrect_answer_lang1
-            answer2_dataset2 = correct_answer_lang2
+            answer1_dataset2 = incorrect_answer1
+            answer2_dataset2 = correct_answer2
         else:
-            answer1_dataset2 = correct_answer_lang2
-            answer2_dataset2 = incorrect_answer_lang1
+            answer1_dataset2 = correct_answer2
+            answer2_dataset2 = incorrect_answer1
 
         # Create entry for dataset1 (lang1 correct, lang2 incorrect)
         entry1 = {
