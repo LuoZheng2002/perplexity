@@ -1,0 +1,90 @@
+"""
+Base abstract class for model-specific interfaces.
+
+This module defines the abstract interface that all model-specific implementations
+must follow to handle chat templates, message formatting, and token position finding.
+"""
+
+from abc import ABC, abstractmethod
+from typing import List, Dict, Any
+
+
+class ModelInterface(ABC):
+    """
+    Abstract base class for model-specific behavior.
+
+    Different language models use different chat templates and formatting conventions.
+    This interface abstracts those differences to allow the perplexity calculation
+    and preference collection logic to work across different models.
+    """
+
+    @abstractmethod
+    def get_system_message(self) -> str:
+        """
+        Get the system message content for the model.
+
+        Returns:
+            System message string
+        """
+        pass
+
+    @abstractmethod
+    def get_assistant_prefix(self) -> str:
+        """
+        Get the assistant prefix token/string used in the chat template.
+
+        This is the string that appears before the assistant's response in the
+        formatted conversation. For example, in ChatML format used by Qwen models,
+        this would be "<|im_start|>assistant\n".
+
+        Returns:
+            Assistant prefix string
+        """
+        pass
+
+    @abstractmethod
+    def build_messages(self, question: str, answer: str) -> List[Dict[str, str]]:
+        """
+        Build the message structure for the conversation.
+
+        Args:
+            question: The user's question
+            answer: The assistant's answer
+
+        Returns:
+            List of message dictionaries with 'role' and 'content' keys
+        """
+        pass
+
+    def find_answer_start(self, tokenizer: Any, full_ids: List[int],
+                         answer_tokens: List[int]) -> int:
+        """
+        Find the starting position of the answer tokens in the full sequence.
+
+        This default implementation uses the assistant prefix to locate where
+        the answer begins. Models can override this if they need custom logic.
+
+        Args:
+            tokenizer: The model's tokenizer
+            full_ids: List of all token IDs in the full conversation
+            answer_tokens: List of token IDs for just the answer
+
+        Returns:
+            Index of the first answer token in full_ids
+
+        Raises:
+            ValueError: If the answer start position cannot be found
+        """
+        assistant_prefix = self.get_assistant_prefix()
+        prefix_ids = tokenizer(assistant_prefix, add_special_tokens=False).input_ids
+
+        # Find the prefix in the full sequence
+        L = len(prefix_ids)
+        for i in range(len(full_ids) - L + 1):
+            if full_ids[i:i+L] == prefix_ids:
+                return i + L  # Return position after the prefix
+
+        raise ValueError(
+            f"Assistant prefix '{assistant_prefix}' not found in tokenized conversation. "
+            f"This might indicate a mismatch between the model interface and the actual model."
+        )

@@ -16,6 +16,7 @@ import math
 from parse_dataset import parse_dataset, prepare_answer_pairs_bilingual
 
 from config import *
+from models import create_model_interface
 
 # Set UTF-8 encoding for console output (Windows fix)
 if sys.platform == 'win32':
@@ -90,7 +91,7 @@ def find_assistant_answer_start(full_ids, prefix_ids):
     raise ValueError("Assistant prefix not found in full_ids.")
 
 
-def collect_perplexity_local(pairs, model, tokenizer, model_name, output_file="perplexities_local.jsonl", device="cuda"):
+def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interface, output_file="perplexities_local.jsonl", device="cuda"):
     """
     Calculate the perplexity of each answer in the pairs using a local LLM.
 
@@ -102,6 +103,7 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, output_file="p
         model: Pre-loaded model instance
         tokenizer: Pre-loaded tokenizer instance
         model_name: Hugging Face model name (for logging/identification)
+        model_interface: ModelInterface instance for model-specific behavior
         output_file: Output file for results
         device: Device to use ("cuda" or "cpu")
 
@@ -137,12 +139,8 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, output_file="p
         Uses chat template formatting with system, user, and assistant messages.
         Returns perplexity computed as exp(-avg_log_prob).
         """
-        # Build messages for the full conversation
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": question},
-            {"role": "assistant", "content": answer}
-        ]
+        # Build messages for the full conversation using model-specific interface
+        messages = model_interface.build_messages(question, answer)
 
         try:
             # Apply chat template to get the full conversation text
@@ -169,12 +167,10 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, output_file="p
         full_ids = input_ids[0].tolist()
 
         try:
-            # Use the assistant prefix to find the answer start position
-            assistant_prefix = "<|im_start|>assistant\n"
-            prefix_ids = tokenizer(assistant_prefix, add_special_tokens=False).input_ids
-            answer_start = find_assistant_answer_start(full_ids, prefix_ids)
-        except (ValueError, AttributeError):
-            print("Could not find assistant prefix, stopping")
+            # Use the model interface to find the answer start position
+            answer_start = model_interface.find_answer_start(tokenizer, full_ids, answer_tokens)
+        except (ValueError, AttributeError) as e:
+            print(f"Could not find assistant answer start: {e}")
             exit(1)
 
         answer_end = answer_start + answer_len  # exclusive
@@ -397,17 +393,21 @@ if __name__ == "__main__":
             _global_model = model
             _global_tokenizer = tokenizer
 
+        # Create model interface for model-specific behavior
+        model_interface = create_model_interface(model_name)
+        print(f"Using model interface: {model_interface.__class__.__name__}")
+
         # Collect preferences
         print("\n" + "="*60)
         print("STEP 4: Collecting Preferences")
         print("="*60)
-        preferences = collect_preference_local_qualitative(pairs, model, tokenizer, model_name, output_file="preferences_local.jsonl")
+        preferences = collect_preference_local_qualitative(pairs, model, tokenizer, model_name, answer_directly=False, output_file="preferences_local.jsonl")
 
         # Calculate perplexities
         print("\n" + "="*60)
         print("STEP 5: Calculating Perplexities")
         print("="*60)
-        perplexities_lang1, perplexities_lang2 = collect_perplexity_local(pairs, model, tokenizer, model_name, output_file="perplexities_local.jsonl")
+        perplexities_lang1, perplexities_lang2 = collect_perplexity_local(pairs, model, tokenizer, model_name, model_interface, output_file="perplexities_local.jsonl")
 
         # Compare results
         print("\n" + "="*60)
