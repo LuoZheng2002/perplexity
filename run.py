@@ -4,6 +4,7 @@ LLM as Judge: Exploring the relationship between perplexity and preference
 import os
 
 from collect_preference_local_direct import collect_preference_local_direct
+from collect_preference_local_thinking import collect_preference_local_thinking
 from generate_dataset import generate_answer_pair_datasets
 os.environ["HF_HOME"] = "/work/nvme/bfdz/zluo8/huggingface"
 import sys
@@ -399,7 +400,17 @@ if __name__ == "__main__":
                     tokenizer=tokenizer,
                     model_name=model_name,
                     model_interface=model_interface,
-                    output_file=f"preferences_local_{config.lang1}_{config.lang2}_{config.subject}.jsonl",
+                    output_file=f"preferences_local_direct_{config.lang1}_{config.lang2}_{config.subject}.jsonl",
+                    device="cuda"
+                )
+            case ResultType.PREFERENCE_THINKING:
+                collect_preference_local_thinking(
+                    pairs=pairs,
+                    model=model,
+                    tokenizer=tokenizer,
+                    model_name=model_name,
+                    model_interface=model_interface,
+                    output_file=f"preferences_local_thinking_{config.lang1}_{config.lang2}_{config.subject}.jsonl",
                     device="cuda"
                 )
 

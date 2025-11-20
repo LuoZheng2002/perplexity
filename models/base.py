@@ -79,6 +79,28 @@ class ModelInterface(ABC):
         """
         pass
 
+    @abstractmethod
+    def build_messages_for_compare_thinking(self, tokenizer: Any, question: str,
+                                           answer1: str, answer2: str) -> str:
+        """
+        Build the message structure for comparison with reasoning and apply chat template.
+
+        This method builds a prompt asking the model to compare two answers with
+        reasoning/explanation before giving the final answer. Unlike the direct version,
+        this encourages the model to think through its decision. Applies the chat template
+        with add_generation_prompt=True.
+
+        Args:
+            tokenizer: The model's tokenizer
+            question: The user's question
+            answer1: The first answer to compare
+            answer2: The second answer to compare
+
+        Returns:
+            Formatted conversation string after applying chat template
+        """
+        pass
+
     def find_answer_start(self, tokenizer: Any, full_ids: List[int],
                          answer_tokens: List[int]) -> int:
         """

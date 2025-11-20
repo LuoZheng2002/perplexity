@@ -96,3 +96,38 @@ Provide your judgment IMMEDIATELY without reasoning or explanation. Provide your
         )
 
         return formatted + "\\box{"
+
+    def build_messages_for_compare_thinking(self, tokenizer: Any, question: str,
+                                           answer1: str, answer2: str) -> str:
+        """
+        Build the message structure for comparison with reasoning and apply chat template.
+
+        Args:
+            tokenizer: The model's tokenizer
+            question: The user's question
+            answer1: The first answer to compare
+            answer2: The second answer to compare
+
+        Returns:
+            Formatted conversation string after applying chat template
+        """
+        prompt = f"""Given the following question and two answers, which answer is better?
+
+Question: {question}
+
+Answer 1: {answer1}
+Answer 2: {answer2}
+
+Please analyze both answers carefully. Consider factors such as correctness, completeness, clarity, and relevance. Explain your reasoning step by step, then provide your final decision in the following format:
+\\boxed{{X}} where X is either 1 or 2."""
+
+        messages = [
+            {"role": "system", "content": self.get_system_message()},
+            {"role": "user", "content": prompt}
+        ]
+
+        return tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
+        )
