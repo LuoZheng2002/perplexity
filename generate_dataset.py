@@ -51,6 +51,7 @@ def generate_answer_pair_datasets(lang1, lang2, subject):
 
     # Load datasets
     print("Loading datasets...")
+    [lang1, lang2] = sorted([lang1, lang2])
     data_lang1 = parse_dataset(lang1, num_samples=None, subject=subject)
     data_lang2 = parse_dataset(lang2, num_samples=None, subject=subject)
 
@@ -65,11 +66,6 @@ def generate_answer_pair_datasets(lang1, lang2, subject):
     min_length = min(len(data_lang1), len(data_lang2), len(data_en))
     print(f"Dataset sizes: {lang1}={len(data_lang1)}, {lang2}={len(data_lang2)}, en={len(data_en)}")
     print(f"Will process {min_length} samples\n")
-
-    # Determine answer order based on lexicographical order
-    sorted_langs = sorted([lang1, lang2])
-    first_lang = sorted_langs[0]
-    second_lang = sorted_langs[1]
 
     # Create two datasets
     dataset1 = []  # lang1 correct, lang2 incorrect
@@ -107,20 +103,12 @@ def generate_answer_pair_datasets(lang1, lang2, subject):
 
         # Determine which answer is answer1 and answer2 based on lexicographical order
         # For dataset1 (lang1 correct, lang2 incorrect):
-        if first_lang == lang1:
-            answer1_dataset1 = correct_answer1
-            answer2_dataset1 = incorrect_answer2
-        else:
-            answer1_dataset1 = incorrect_answer2
-            answer2_dataset1 = correct_answer1
+        answer1_dataset1 = correct_answer1
+        answer2_dataset1 = incorrect_answer2
 
         # For dataset2 (lang1 incorrect, lang2 correct):
-        if first_lang == lang1:
-            answer1_dataset2 = incorrect_answer1
-            answer2_dataset2 = correct_answer2
-        else:
-            answer1_dataset2 = correct_answer2
-            answer2_dataset2 = incorrect_answer1
+        answer1_dataset2 = incorrect_answer1
+        answer2_dataset2 = correct_answer2
 
         # Create entry for dataset1 (lang1 correct, lang2 incorrect)
         entry1 = {
@@ -128,9 +116,9 @@ def generate_answer_pair_datasets(lang1, lang2, subject):
             'question': sample_en['question'],
             'answer1': answer1_dataset1,
             'answer2': answer2_dataset1,
-            'lang1': first_lang,
-            'lang2': second_lang,
-            'correct_answer': 1 if first_lang == lang1 else 2,
+            'lang1': lang1,
+            'lang2': lang2,
+            'correct_answer': 1,
             'subject': sample_en['subject']
         }
         dataset1.append(entry1)
@@ -141,9 +129,9 @@ def generate_answer_pair_datasets(lang1, lang2, subject):
             'question': sample_en['question'],
             'answer1': answer1_dataset2,
             'answer2': answer2_dataset2,
-            'lang1': first_lang,
-            'lang2': second_lang,
-            'correct_answer': 1 if first_lang == lang2 else 2,
+            'lang1': lang1,
+            'lang2': lang2,
+            'correct_answer': 2,
             'subject': sample_en['subject']
         }
         dataset2.append(entry2)

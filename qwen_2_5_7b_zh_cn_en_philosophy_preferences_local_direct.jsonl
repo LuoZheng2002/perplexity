@@ -1,2 +1,0 @@
-{"index": 0, "preference": null, "log_prob_1": null, "log_prob_2": null, "log_prob_diff": null, "error": "list indices must be integers or slices, not str", "model": "Qwen/Qwen2.5-7B-Instruct"}
-{"index": 1, "preference": null, "log_prob_1": null, "log_prob_2": null, "log_prob_diff": null, "error": "list indices must be integers or slices, not str", "model": "Qwen/Qwen2.5-7B-Instruct"}
