@@ -129,7 +129,7 @@ Question: {question}
 Answer 1: {answer1}
 Answer 2: {answer2}
 
-Please analyze both answers carefully. Consider factors such as correctness, completeness, clarity, and relevance. Explain your reasoning step by step, then provide your final decision in the following format:
+Please briefly explain your reasoning, and then provide your final decision in the following format:
 \\boxed{{X}} where X is either 1 or 2."""
 
         messages = [
