@@ -12,7 +12,8 @@ def collect_preference_local_thinking(
         model_name,
         model_interface,
         output_file="preferences_local_thinking.jsonl",
-        device="cuda"):
+        device="cuda",
+        batch_size=1):
     """
     Use a local LLM to judge which answer is better with reasoning.
 
@@ -28,6 +29,7 @@ def collect_preference_local_thinking(
         model_interface: ModelInterface instance for model-specific behavior
         output_file: Output file for results
         device: Device to use ("cuda" or "cpu")
+        batch_size: Number of samples to process in parallel (default: 1)
 
     Returns:
         List of preferences (1 if answer1 is better, 2 if answer2 is better)
@@ -54,29 +56,51 @@ def collect_preference_local_thinking(
 
     print(f"\nCollecting preferences with reasoning using local LLM: {model_name}")
     print(f"Results will be written to {output_file}")
+    print(f"Batch size: {batch_size}")
+
+    # Collect unprocessed samples
+    unprocessed_samples = []
+    for i, pair in enumerate(pairs):
+        if i not in processed_indices:
+            unprocessed_samples.append((i, pair))
+
+    total_to_process = len(unprocessed_samples)
+    print(f"Samples to process: {total_to_process}")
 
     # Open file in append mode
     with open(output_file, 'a', encoding='utf-8') as f:
-        for i, pair in enumerate(pairs):
-            # Skip if already processed
-            if i in processed_indices:
-                continue
+        # Process in batches
+        for batch_start in range(0, len(unprocessed_samples), batch_size):
+            batch_end = min(batch_start + batch_size, len(unprocessed_samples))
+            batch = unprocessed_samples[batch_start:batch_end]
+
+            # Prepare batch data
+            batch_indices = [item[0] for item in batch]
+            batch_pairs = [item[1] for item in batch]
 
             try:
-                # Build formatted prompt using model-specific interface
-                # This prompts the model to reason before giving the final answer
-                formatted_prompt = model_interface.build_messages_for_compare_thinking(
-                    tokenizer,
-                    pair['question'],
-                    pair['answer1'],
-                    pair['answer2']
-                )
+                # Build formatted prompts for all samples in batch
+                formatted_prompts = []
+                for pair in batch_pairs:
+                    formatted_prompt = model_interface.build_messages_for_compare_thinking(
+                        tokenizer,
+                        pair['question'],
+                        pair['answer1'],
+                        pair['answer2']
+                    )
+                    formatted_prompts.append(formatted_prompt)
 
-                # Tokenize the formatted prompt
-                inputs = tokenizer(formatted_prompt, return_tensors="pt", truncation=True, max_length=1024)
+                # Tokenize the batch with padding
+                inputs = tokenizer(
+                    formatted_prompts,
+                    return_tensors="pt",
+                    truncation=True,
+                    max_length=1024,
+                    padding=True
+                )
                 inputs = {k: v.to(device) for k, v in inputs.items()}
 
-                # Generate response with reasoning
+                # Generate responses for the batch
                 with torch.no_grad():
                     output_ids = model.generate(
                         **inputs,
@@ -88,64 +112,84 @@ def collect_preference_local_thinking(
                         eos_token_id=tokenizer.eos_token_id
                     )
 
-                # Decode the output (skip the input tokens)
-                raw_answer = tokenizer.decode(
-                    output_ids[0][inputs['input_ids'].shape[1]:],
-                    skip_special_tokens=True
-                ).strip()
+                # Process each output in the batch
+                for batch_idx, (i, pair) in enumerate(batch):
+                    try:
+                        # Decode the output (skip the input tokens)
+                        input_length = inputs['input_ids'][batch_idx].shape[0]
+                        raw_answer = tokenizer.decode(
+                            output_ids[batch_idx][input_length:],
+                            skip_special_tokens=True
+                        ).strip()
 
-                # Extract the boxed answer
-                match = re.search(r'\\boxed\{(\d+)\}', raw_answer)
-                error_msg = None
+                        # Extract the boxed answer
+                        match = re.search(r'\\boxed\{(\d+)\}', raw_answer)
+                        error_msg = None
 
-                if match:
-                    preference = int(match.group(1))
-                    if preference not in [1, 2]:
-                        error_msg = f"Invalid preference value in boxed answer: {preference}"
-                        preference = 0
-                else:
-                    # Could not find boxed answer
-                    error_msg = "LLM did not include decision in \\boxed{} format"
-                    preference = 0
-                    print(f"  Warning: Could not parse answer for sample {i}, setting preference to 0")
+                        if match:
+                            preference = int(match.group(1))
+                            if preference not in [1, 2]:
+                                error_msg = f"Invalid preference value in boxed answer: {preference}"
+                                preference = 0
+                        else:
+                            # Could not find boxed answer
+                            error_msg = "LLM did not include decision in \\boxed{} format"
+                            preference = 0
+                            print(f"  Warning: Could not parse answer for sample {i}, setting preference to 0")
 
-                # Write result immediately
-                result = {
-                    'index': i,
-                    'preference': preference,
-                    'reasoning': raw_answer,
-                    'question': pair['question'],
-                    'answer1': pair['answer1'],
-                    'answer2': pair['answer2'],
-                    'lang1': pair['lang1'],
-                    'lang2': pair['lang2'],
-                    'model': model_name
-                }
+                        # Write result immediately
+                        result = {
+                            'index': i,
+                            'preference': preference,
+                            'reasoning': raw_answer,
+                            'question': pair['question'],
+                            'answer1': pair['answer1'],
+                            'answer2': pair['answer2'],
+                            'lang1': pair['lang1'],
+                            'lang2': pair['lang2'],
+                            'model': model_name
+                        }
 
-                if error_msg:
-                    result['error'] = error_msg
+                        if error_msg:
+                            result['error'] = error_msg
 
-                f.write(json.dumps(result, ensure_ascii=False) + '\n')
-                f.flush()
+                        f.write(json.dumps(result, ensure_ascii=False) + '\n')
+                        f.flush()
 
-                results_dict[i] = preference
+                        results_dict[i] = preference
 
-                if (len(results_dict)) % 5 == 0:
+                    except Exception as e:
+                        print(f"Error processing sample {i} in batch: {e}")
+                        # Write error result
+                        result = {
+                            'index': i,
+                            'preference': None,
+                            'reasoning': None,
+                            'error': str(e),
+                            'model': model_name
+                        }
+                        f.write(json.dumps(result, ensure_ascii=False) + '\n')
+                        f.flush()
+                        results_dict[i] = None
+
+                # Progress update after each batch
+                if len(results_dict) % 5 == 0 or batch_end == len(unprocessed_samples):
                     print(f"  Processed {len(results_dict)}/{len(pairs)} samples")
 
             except Exception as e:
-                print(f"Error on sample {i}: {e}")
-                # Write error result
-                result = {
-                    'index': i,
-                    'preference': None,
-                    'reasoning': None,
-                    'error': str(e),
-                    'model': model_name
-                }
-                f.write(json.dumps(result, ensure_ascii=False) + '\n')
-                f.flush()
-                results_dict[i] = None
+                print(f"Error processing batch starting at index {batch_start}: {e}")
+                # Write error results for all samples in the failed batch
+                for i, pair in batch:
+                    result = {
+                        'index': i,
+                        'preference': None,
+                        'reasoning': None,
+                        'error': f"Batch error: {str(e)}",
+                        'model': model_name
+                    }
+                    f.write(json.dumps(result, ensure_ascii=False) + '\n')
+                    f.flush()
+                    results_dict[i] = None
 
     # Build final list in order
     print("\nPreference collection completed.")
