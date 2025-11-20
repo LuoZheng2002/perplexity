@@ -244,3 +244,69 @@ if __name__ == "__main__":
     # Verify alignment
     print("\n" + "="*60)
     verify_alignment("en", "zh_cn", num_samples=10)
+
+
+def prepare_answer_pairs_bilingual(lang1="zh_cn", lang2="en", subject=None, num_samples=100):
+    """
+    Load datasets from two languages and create bilingual answer pairs.
+    Question is always in English, while answers are extracted from lang1 and lang2 datasets.
+
+    Args:
+        lang1: First language code (e.g., "zh_cn")
+        lang2: Second language code (e.g., "en")
+        num_samples: Number of samples to create
+
+    Returns:
+        List of pairs with structure:
+        {
+            'question': str (English question),
+            'answer_lang1': str (correct answer from lang1),
+            'answer_lang2': str (correct answer from lang2),
+            'lang1': str (language code),
+            'lang2': str (language code),
+            'subject': str,
+            'original_index': int
+        }
+    """
+    print(f"\nLoading and parsing datasets...")
+
+    # Parse datasets using the normalized parse_dataset function
+    data_en = parse_dataset("en", num_samples=num_samples, subject=subject)
+    data_lang1 = parse_dataset(lang1, num_samples=num_samples, subject=subject)
+    data_lang2 = parse_dataset(lang2, num_samples=num_samples, subject=subject)
+
+    print(f"Dataset sizes: en={len(data_en)}, {lang1}={len(data_lang1)}, {lang2}={len(data_lang2)}")
+
+    pairs = []
+    misaligned_count = 0
+
+    for i in range(min(num_samples, len(data_en), len(data_lang1), len(data_lang2))):
+        sample_en = data_en[i]
+        sample_lang1 = data_lang1[i]
+        sample_lang2 = data_lang2[i]
+
+        # Verify they're the same question (same original_index)
+        if sample_en['original_index'] != sample_lang1['original_index'] or \
+           sample_en['original_index'] != sample_lang2['original_index']:
+            misaligned_count += 1
+            continue
+
+        # Extract correct answers from both language datasets
+        answer_lang1 = sample_lang1['answer']  # Already the correct answer text
+        answer_lang2 = sample_lang2['answer']  # Already the correct answer text
+
+        pairs.append({
+            'question': sample_en['question'],  # Always English
+            'answer_lang1': answer_lang1,
+            'answer_lang2': answer_lang2,
+            'lang1': lang1,
+            'lang2': lang2,
+            'subject': sample_en['subject'],
+            'original_index': sample_en['original_index']
+        })
+
+    if misaligned_count > 0:
+        print(f"Warning: Skipped {misaligned_count} misaligned samples")
+
+    print(f"Created {len(pairs)} answer pairs comparing {lang1} vs {lang2} (with English questions)")
+    return pairs

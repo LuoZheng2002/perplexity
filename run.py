@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 import json
 import re
 import math
-from parse_dataset import parse_dataset
+from parse_dataset import parse_dataset, prepare_answer_pairs_bilingual
 
 # Set UTF-8 encoding for console output (Windows fix)
 if sys.platform == 'win32':
@@ -61,323 +61,7 @@ def initialize_model(model_name="Qwen/Qwen2.5-7B-Instruct", device="cuda"):
     # Set pad token if not already set
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-
     return model, tokenizer
-
-
-
-def prepare_answer_pairs_bilingual(lang1="zh_cn", lang2="en", subject=None, num_samples=100):
-    """
-    Load datasets from two languages and create bilingual answer pairs.
-    Question is always in English, while answers are extracted from lang1 and lang2 datasets.
-
-    Args:
-        lang1: First language code (e.g., "zh_cn")
-        lang2: Second language code (e.g., "en")
-        num_samples: Number of samples to create
-
-    Returns:
-        List of pairs with structure:
-        {
-            'question': str (English question),
-            'answer_lang1': str (correct answer from lang1),
-            'answer_lang2': str (correct answer from lang2),
-            'lang1': str (language code),
-            'lang2': str (language code),
-            'subject': str,
-            'original_index': int
-        }
-    """
-    print(f"\nLoading and parsing datasets...")
-
-    # Parse datasets using the normalized parse_dataset function
-    data_en = parse_dataset("en", num_samples=num_samples, subject=subject)
-    data_lang1 = parse_dataset(lang1, num_samples=num_samples, subject=subject)
-    data_lang2 = parse_dataset(lang2, num_samples=num_samples, subject=subject)
-
-    print(f"Dataset sizes: en={len(data_en)}, {lang1}={len(data_lang1)}, {lang2}={len(data_lang2)}")
-
-    pairs = []
-    misaligned_count = 0
-
-    for i in range(min(num_samples, len(data_en), len(data_lang1), len(data_lang2))):
-        sample_en = data_en[i]
-        sample_lang1 = data_lang1[i]
-        sample_lang2 = data_lang2[i]
-
-        # Verify they're the same question (same original_index)
-        if sample_en['original_index'] != sample_lang1['original_index'] or \
-           sample_en['original_index'] != sample_lang2['original_index']:
-            misaligned_count += 1
-            continue
-
-        # Extract correct answers from both language datasets
-        answer_lang1 = sample_lang1['answer']  # Already the correct answer text
-        answer_lang2 = sample_lang2['answer']  # Already the correct answer text
-
-        pairs.append({
-            'question': sample_en['question'],  # Always English
-            'answer_lang1': answer_lang1,
-            'answer_lang2': answer_lang2,
-            'lang1': lang1,
-            'lang2': lang2,
-            'subject': sample_en['subject'],
-            'original_index': sample_en['original_index']
-        })
-
-    if misaligned_count > 0:
-        print(f"Warning: Skipped {misaligned_count} misaligned samples")
-
-    print(f"Created {len(pairs)} answer pairs comparing {lang1} vs {lang2} (with English questions)")
-    return pairs
-
-
-def collect_preferences(pairs, api_key, output_file="preferences.jsonl"):
-    """
-    Use GPT-4o-mini to judge which answer is better for each question.
-    Returns list of preferences (1 if answer from lang1 is better, 2 if answer from lang2 is better)
-    Writes results incrementally to output_file in JSON Lines format.
-    """
-    client = OpenAI(api_key=api_key)
-
-    # Load already processed samples if file exists
-    processed_indices = set()
-    results_dict = {}
-
-    if os.path.exists(output_file):
-        print(f"Loading existing results from {output_file}...")
-        with open(output_file, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.strip():
-                    result = json.loads(line)
-                    idx = result['index']
-                    processed_indices.add(idx)
-                    results_dict[idx] = result['preference']
-        print(f"Found {len(processed_indices)} already processed samples")
-
-    print(f"\nCollecting preferences from GPT-4o-mini...")
-    print(f"Results will be written to {output_file}")
-
-    # Open file in append mode
-    with open(output_file, 'a', encoding='utf-8') as f:
-        for i, pair in enumerate(pairs):
-            # Skip if already processed
-            if i in processed_indices:
-                continue
-
-            # Present the question in English with answers in different languages (without language labels)
-            # Allow reasoning and require final answer in a box
-            prompt = f"""Given the following question and two answers, which answer is better?
-
-Question: {pair['question']}
-
-Answer 1: {pair['answer_lang1']}
-Answer 2: {pair['answer_lang2']}
-
-Think through your reasoning, then provide your final decision in the following format:
-\\boxed{{X}} where X is either 1 or 2."""
-
-            try:
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0,
-                    max_tokens=500  # Allow more tokens for reasoning
-                )
-
-                raw_answer = response.choices[0].message.content.strip()
-
-                # Extract the boxed answer
-                import re
-                match = re.search(r'\\boxed\{(\d+)\}', raw_answer)
-                error_msg = None
-
-                if match:
-                    preference = int(match.group(1))
-                    if preference not in [1, 2]:
-                        error_msg = f"Invalid preference value in boxed answer: {preference}"
-                        preference = 0
-                else:
-                    # Could not find boxed answer
-                    error_msg = "LLM did not include decision in \\boxed{} format"
-                    preference = 0
-                    print(f"  Warning: Could not parse answer for sample {i}, setting preference to 0")
-
-                # Write result immediately
-                result = {
-                    'index': i,
-                    'preference': preference,
-                    'raw_answer': raw_answer,  # Include full reasoning
-                    'question': pair['question'],
-                    'answer_lang1': pair['answer_lang1'],
-                    'answer_lang2': pair['answer_lang2'],
-                    'lang1': pair['lang1'],
-                    'lang2': pair['lang2']
-                }
-
-                if error_msg:
-                    result['error'] = error_msg
-
-                f.write(json.dumps(result, ensure_ascii=False) + '\n')
-                f.flush()  # Flush to disk immediately
-
-                results_dict[i] = preference
-
-                if (len(results_dict)) % 10 == 0:
-                    print(f"  Processed {len(results_dict)}/{len(pairs)} samples")
-
-            except Exception as e:
-                print(f"Error on sample {i}: {e}")
-                # Write error result
-                result = {
-                    'index': i,
-                    'preference': None,
-                    'raw_answer': None,
-                    'error': str(e)
-                }
-                f.write(json.dumps(result, ensure_ascii=False) + '\n')
-                f.flush()
-                results_dict[i] = None
-
-    # Build final list in order
-    preferences = [results_dict.get(i, None) for i in range(len(pairs))]
-    print(f"Collected {len([p for p in preferences if p is not None])} valid preferences")
-    return preferences
-
-
-def collect_preferences_local(pairs, model, tokenizer, model_name, output_file="preferences_local.jsonl", device="cuda"):
-    """
-    Use a local LLM to judge which answer is better.
-
-    Args:
-        pairs: List of question-answer pairs
-        model: Pre-loaded model instance
-        tokenizer: Pre-loaded tokenizer instance
-        model_name: Hugging Face model name (for logging/identification)
-        output_file: Output file for results
-        device: Device to use ("cuda" or "cpu")
-
-    Returns:
-        List of preferences (1 if answer from lang1 is better, 2 if answer from lang2 is better)
-    """
-    import torch
-
-    # Load already processed samples if file exists
-    processed_indices = set()
-    results_dict = {}
-
-    if os.path.exists(output_file):
-        print(f"Loading existing results from {output_file}...")
-        with open(output_file, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.strip():
-                    result = json.loads(line)
-                    idx = result['index']
-                    processed_indices.add(idx)
-                    results_dict[idx] = result['preference']
-        print(f"Found {len(processed_indices)} already processed samples")
-
-    print(f"\nCollecting preferences using local LLM: {model_name}")
-    print(f"Results will be written to {output_file}")
-
-    # Open file in append mode
-    with open(output_file, 'a', encoding='utf-8') as f:
-        for i, pair in enumerate(pairs):
-            # Skip if already processed
-            if i in processed_indices:
-                continue
-
-            # Present the question with both answers
-            prompt = f"""Given the following question and two answers, which answer is better?
-
-Question: {pair['question']}
-
-Answer 1: {pair['answer_lang1']}
-Answer 2: {pair['answer_lang2']}
-
-Think through your reasoning, then provide your final decision in the following format:
-\\boxed{{X}} where X is either 1 or 2."""
-
-            try:
-                # Tokenize the prompt
-                inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1024)
-                inputs = {k: v.to(device) for k, v in inputs.items()}
-
-                # Generate response
-                with torch.no_grad():
-                    output_ids = model.generate(
-                        **inputs,
-                        max_new_tokens=200,
-                        temperature=0.0,
-                        top_p=1.0,
-                        do_sample=False,
-                        pad_token_id=tokenizer.pad_token_id,
-                        eos_token_id=tokenizer.eos_token_id
-                    )
-
-                # Decode the output (skip the input tokens)
-                raw_answer = tokenizer.decode(
-                    output_ids[0][inputs['input_ids'].shape[1]:],
-                    skip_special_tokens=True
-                ).strip()
-
-                # Extract the boxed answer
-                match = re.search(r'\\boxed\{(\d+)\}', raw_answer)
-                error_msg = None
-
-                if match:
-                    preference = int(match.group(1))
-                    if preference not in [1, 2]:
-                        error_msg = f"Invalid preference value in boxed answer: {preference}"
-                        preference = 0
-                else:
-                    # Could not find boxed answer
-                    error_msg = "LLM did not include decision in \\boxed{} format"
-                    preference = 0
-                    print(f"  Warning: Could not parse answer for sample {i}, setting preference to 0")
-
-                # Write result immediately
-                result = {
-                    'index': i,
-                    'preference': preference,
-                    'raw_answer': raw_answer,
-                    'question': pair['question'],
-                    'answer_lang1': pair['answer_lang1'],
-                    'answer_lang2': pair['answer_lang2'],
-                    'lang1': pair['lang1'],
-                    'lang2': pair['lang2'],
-                    'model': model_name
-                }
-
-                if error_msg:
-                    result['error'] = error_msg
-
-                f.write(json.dumps(result, ensure_ascii=False) + '\n')
-                f.flush()
-
-                results_dict[i] = preference
-
-                if (len(results_dict)) % 5 == 0:
-                    print(f"  Processed {len(results_dict)}/{len(pairs)} samples")
-
-            except Exception as e:
-                print(f"Error on sample {i}: {e}")
-                # Write error result
-                result = {
-                    'index': i,
-                    'preference': None,
-                    'raw_answer': None,
-                    'error': str(e),
-                    'model': model_name
-                }
-                f.write(json.dumps(result, ensure_ascii=False) + '\n')
-                f.flush()
-                results_dict[i] = None
-
-    # Build final list in order
-    preferences = [results_dict.get(i, None) for i in range(len(pairs))]
-    print(f"Collected {len([p for p in preferences if p is not None])} valid preferences")
-    return preferences
 
 
 def find_assistant_answer_start(full_ids, prefix_ids):
@@ -401,7 +85,7 @@ def find_assistant_answer_start(full_ids, prefix_ids):
     raise ValueError("Assistant prefix not found in full_ids.")
 
 
-def calculate_perplexity_local(pairs, model, tokenizer, model_name, output_file="perplexities_local.jsonl", device="cuda"):
+def collect_perplexity_local(pairs, model, tokenizer, model_name, output_file="perplexities_local.jsonl", device="cuda"):
     """
     Calculate the perplexity of each answer in the pairs using a local LLM.
 
@@ -464,8 +148,7 @@ def calculate_perplexity_local(pairs, model, tokenizer, model_name, output_file=
             )
         except Exception as e:
             print(f"Error applying chat template: {e}")
-            # Fallback to simple concatenation if chat template not supported
-            full_chat_text = f"{question}{answer}"
+            exit(1)
         print("full chat text:\n", full_chat_text)
         print("answer:\n", answer)
         # Tokenize the full text
@@ -486,17 +169,8 @@ def calculate_perplexity_local(pairs, model, tokenizer, model_name, output_file=
             prefix_ids = tokenizer(assistant_prefix, add_special_tokens=False).input_ids
             answer_start = find_assistant_answer_start(full_ids, prefix_ids)
         except (ValueError, AttributeError):
-            # Fallback: search for exact answer token match if prefix method fails
-            # answer_start = None
-            # for i in range(len(full_ids) - answer_len + 1):
-            #     if full_ids[i:i + answer_len] == answer_tokens:
-            #         answer_start = i
-            #         break
-
-            if answer_start is None:
-                # If exact match not found, log a warning and return None
-                print(f"Warning: Answer tokens not found in full tokenized output for question: {question[:50]}...")
-                return None
+            print("Could not find assistant prefix, stopping")
+            exit(1)
 
         answer_end = answer_start + answer_len  # exclusive
 
@@ -723,13 +397,13 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("STEP 4: Collecting Preferences")
     print("="*60)
-    preferences = collect_preferences_local(pairs, model, tokenizer, model_name, output_file="preferences_local.jsonl")
+    preferences = collect_preference_local_qualitative(pairs, model, tokenizer, model_name, output_file="preferences_local.jsonl")
 
     # Calculate perplexities
     print("\n" + "="*60)
     print("STEP 5: Calculating Perplexities")
     print("="*60)
-    perplexities_lang1, perplexities_lang2 = calculate_perplexity_local(pairs, model, tokenizer, model_name, output_file="perplexities_local.jsonl")
+    perplexities_lang1, perplexities_lang2 = collect_perplexity_local(pairs, model, tokenizer, model_name, output_file="perplexities_local.jsonl")
 
     # Compare results
     print("\n" + "="*60)

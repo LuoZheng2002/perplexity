@@ -22,3 +22,15 @@ See if there is ending special tokens
 
 Feed the full text to model.forward, and grab the probability from start token to end token.
 
+
+In the last meeting, we decided to do right / wrong pair. 
+I've got the strategy for choosing the right / wrong pair.
+Then let the model decide which is correct. (Immediately?) do both prompts.
+
+If the judgment is wrong, then do another completely opposite experiment to check if the error is due to bias or capability
+
+Probabilistic mode: measure the probability difference between completely opposite experiments
+
+zh correct, en wrong; zh wrong, en correct; ...
+
+fix the order.
