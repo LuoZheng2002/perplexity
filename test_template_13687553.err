@@ -1,10 +1,0 @@
-Generating train split:   0%|          | 0/11478 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 11478/11478 [00:00<00:00, 71907.51 examples/s]Generating train split: 100%|██████████| 11478/11478 [00:00<00:00, 69565.76 examples/s]
-Generating train split:   0%|          | 0/11478 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 11478/11478 [00:00<00:00, 125570.17 examples/s]
-Traceback (most recent call last):
-  File "/projects/bfdz/zluo8/perplexity/llm_judge.py", line 695, in <module>
-    pairs = prepare_answer_pairs_bilingual(lang1="zh_cn", lang2="en", num_samples=20)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/projects/bfdz/zluo8/perplexity/llm_judge.py", line 129, in prepare_answer_pairs_bilingual
-    correct_letter2 = sample2['Answer']
-                      ~~~~~~~^^^^^^^^^^
-KeyError: 'Answer'

@@ -1,6 +1,0 @@
-Processing configuration:  Config(model=<Model.QWEN_2_5_7B_INSTRUCT: 'Qwen/Qwen2.5-7B-Instruct'>, lang1='zh_cn', lang2='en', subject='philosophy', result_type=<ResultType.PREFERENCE_DIRECT: 1>)
-Loaded 311 samples from datasets/pair_en_correct_zh_cn_incorrect_philosophy.jsonl
-Loaded 311 samples from datasets/pair_en_incorrect_zh_cn_correct_philosophy.jsonl
-Initializing new model: Qwen/Qwen2.5-7B-Instruct
-Loading model: Qwen/Qwen2.5-7B-Instruct
-Using device: cuda

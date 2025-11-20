@@ -1,1 +1,0 @@
-Processing configuration:  Config(model=<Model.QWEN_2_5_7B_INSTRUCT: 'Qwen/Qwen2.5-7B-Instruct'>, lang1='zh_cn', lang2='en', subject='philosophy', result_type=<ResultType.PREFERENCE_DIRECT: 1>)
