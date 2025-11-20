@@ -155,8 +155,8 @@ def generate_answer_pair_datasets(lang1, lang2, subject):
     os.makedirs("datasets", exist_ok=True)
 
     # Save datasets to JSONL files
-    file1 = f"datasets/pair_{lang1}_correct_{lang2}_incorrect.jsonl"
-    file2 = f"datasets/pair_{lang1}_incorrect_{lang2}_correct.jsonl"
+    file1 = f"datasets/pair_{lang1}_correct_{lang2}_incorrect_{subject}.jsonl"
+    file2 = f"datasets/pair_{lang1}_incorrect_{lang2}_correct_{subject}.jsonl"
 
     print(f"Saving datasets...")
     with open(file1, 'w', encoding='utf-8') as f:

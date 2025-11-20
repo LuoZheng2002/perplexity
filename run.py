@@ -2,6 +2,9 @@
 LLM as Judge: Exploring the relationship between perplexity and preference
 """
 import os
+
+from collect_preference_local_qualitative import collect_preference_local_qualitative
+from generate_dataset import generate_answer_pair_datasets
 os.environ["HF_HOME"] = "/work/nvme/bfdz/zluo8/huggingface"
 import sys
 from datasets import load_dataset
@@ -11,6 +14,8 @@ import json
 import re
 import math
 from parse_dataset import parse_dataset, prepare_answer_pairs_bilingual
+
+from config import *
 
 # Set UTF-8 encoding for console output (Windows fix)
 if sys.platform == 'win32':
@@ -363,50 +368,49 @@ def compare_results(preferences, perplexities_lang1, perplexities_lang2, lang1, 
             print(f"  Perplexity method chose: {lang1 if perplexity_preferences[i] == 1 else lang2}")
             print(f"  Match: {'✓' if preferences[i] == perplexity_preferences[i] else '✗'}")
 
+_global_model_name = None
+_global_model = None
+_global_tokenizer = None
 
 if __name__ == "__main__":
-    # # Load API key
-    # api_key = os.getenv("OPENAI_API_KEY")
-    # if not api_key:
-    #     print("Error: OPENAI_API_KEY not found in .env file")
-    #     exit(1)
+    for config in configs:
+        print("Processing configuration: ", config)
+        pairs = generate_answer_pair_datasets(lang1=config.lang1, lang2=config.lang2, subject=config.subject)
 
+        # Initialize model and tokenizer
+        print("\n" + "="*60)
+        print("STEP 3: Initializing Model and Tokenizer")
+        print("="*60)
 
+        # Get or create model and tokenizer with caching
+        model_name = config.model.value
+        if _global_model_name == model_name:
+            # Reuse cached model and tokenizer
+            print(f"Reusing cached model: {model_name}")
+            model = _global_model
+            tokenizer = _global_tokenizer
+        else:
+            # Initialize new model and tokenizer, update cache
+            print(f"Initializing new model: {model_name}")
+            model, tokenizer = initialize_model(model_name=model_name, device="cuda")
+            _global_model_name = model_name
+            _global_model = model
+            _global_tokenizer = tokenizer
 
-    # Prepare answer pairs (comparing zh_cn vs en)
-    print("\n" + "="*60)
-    print("STEP 2: Preparing Answer Pairs")
-    print("="*60)
-    pairs = prepare_answer_pairs_bilingual(lang1="zh_cn", lang2="en", subject="philosophy", num_samples=20)
+        # Collect preferences
+        print("\n" + "="*60)
+        print("STEP 4: Collecting Preferences")
+        print("="*60)
+        preferences = collect_preference_local_qualitative(pairs, model, tokenizer, model_name, output_file="preferences_local.jsonl")
 
-    # Show example pairs
-    if pairs:
-        print("\nExample pair:")
-        print(f"Question (en): {pairs[0]['question']}")
-        print(f"Answer 1 ({pairs[0]['lang1']}): {pairs[0]['answer_lang1']}")
-        print(f"Answer 2 ({pairs[0]['lang2']}): {pairs[0]['answer_lang2']}")
+        # Calculate perplexities
+        print("\n" + "="*60)
+        print("STEP 5: Calculating Perplexities")
+        print("="*60)
+        perplexities_lang1, perplexities_lang2 = collect_perplexity_local(pairs, model, tokenizer, model_name, output_file="perplexities_local.jsonl")
 
-    # Initialize model and tokenizer
-    print("\n" + "="*60)
-    print("STEP 3: Initializing Model and Tokenizer")
-    print("="*60)
-    model_name = "Qwen/Qwen2.5-7B-Instruct"
-    model, tokenizer = initialize_model(model_name=model_name, device="cuda")
-
-    # Collect preferences
-    print("\n" + "="*60)
-    print("STEP 4: Collecting Preferences")
-    print("="*60)
-    preferences = collect_preference_local_qualitative(pairs, model, tokenizer, model_name, output_file="preferences_local.jsonl")
-
-    # Calculate perplexities
-    print("\n" + "="*60)
-    print("STEP 5: Calculating Perplexities")
-    print("="*60)
-    perplexities_lang1, perplexities_lang2 = collect_perplexity_local(pairs, model, tokenizer, model_name, output_file="perplexities_local.jsonl")
-
-    # Compare results
-    print("\n" + "="*60)
-    print("STEP 6: Analyzing Results")
-    print("="*60)
-    compare_results(preferences, perplexities_lang1, perplexities_lang2, "zh_cn", "en")
+        # Compare results
+        print("\n" + "="*60)
+        print("STEP 6: Analyzing Results")
+        print("="*60)
+        compare_results(preferences, perplexities_lang1, perplexities_lang2, "zh_cn", "en")

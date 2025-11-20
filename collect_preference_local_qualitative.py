@@ -1,5 +1,7 @@
-
-def collect_preference_local_qualitative(pairs, model, tokenizer, model_name, output_file="preferences_local.jsonl", device="cuda"):
+import json
+import os
+import re
+def collect_preference_local_qualitative(pairs, model, tokenizer, model_name, answer_directly: bool, output_file="preferences_local.jsonl", device="cuda"):
     """
     Use a local LLM to judge which answer is better.
 
@@ -40,7 +42,10 @@ def collect_preference_local_qualitative(pairs, model, tokenizer, model_name, ou
             # Skip if already processed
             if i in processed_indices:
                 continue
-
+            if answer_directly:
+                answer_prompt = "Answer directly without reasoning and explaination. "
+            else:
+                answer_prompt = ""
             # Present the question with both answers
             prompt = f"""Given the following question and two answers, which answer is better?
 
@@ -49,7 +54,7 @@ Question: {pair['question']}
 Answer 1: {pair['answer_lang1']}
 Answer 2: {pair['answer_lang2']}
 
-Think through your reasoning, then provide your final decision in the following format:
+{answer_prompt}Provide your final decision in the following format:
 \\boxed{{X}} where X is either 1 or 2."""
 
             try:
