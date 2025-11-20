@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=llm_judge       # Job name
-#SBATCH --output=llm_judge_%j.out        # Standard output log (%j = job ID)
-#SBATCH --error=llm_judge_%j.err         # Error log
+#SBATCH --job-name=run       # Job name
+#SBATCH --output=run_%j.out        # Standard output log (%j = job ID)
+#SBATCH --error=run_%j.err         # Error log
 #SBATCH --time=00:15:00                 # Max runtime (HH:MM:SS)
 # #SBATCH --partition=gpu                  # Partition/queue with GPU
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -26,4 +26,4 @@ export HF_HOME=/work/nvme/bfdz/zluo8/huggingface
 
 # Run the training script
 
-python llm_judge.py
+python run.py

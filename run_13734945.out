@@ -1,0 +1,110 @@
+Processing configuration:  Config(model=<Model.QWEN_2_5_7B_INSTRUCT: 'Qwen/Qwen2.5-7B-Instruct'>, lang1='zh_cn', lang2='en', subject='philosophy', result_type=<ResultType.PREFERENCE_DIRECT: 1>)
+
+============================================================
+Generating answer pair datasets for zh_cn and en
+Subject: philosophy
+============================================================
+
+Loading datasets...
+Loading dataset for language: zh_cn...
+Filtering by subject: philosophy
+Processing up to 11478/11478 samples...
+Successfully loaded and normalized 311 samples
+Loading dataset for language: en...
+Filtering by subject: philosophy
+Processing up to 11478/11478 samples...
+Successfully loaded and normalized 311 samples
+Dataset sizes: zh_cn=311, en=311, en=311
+Will process 311 samples
+
+Saving datasets...
+  Saved 311 entries to datasets/pair_zh_cn_correct_en_incorrect_philosophy.jsonl
+  Saved 311 entries to datasets/pair_zh_cn_incorrect_en_correct_philosophy.jsonl
+
+============================================================
+Successfully generated 311 answer pairs
+============================================================
+
+Initializing new model: Qwen/Qwen2.5-7B-Instruct
+Loading model: Qwen/Qwen2.5-7B-Instruct
+Using device: cuda
+Using model interface: QwenModelInterface
+
+Collecting preferences using local LLM: Qwen/Qwen2.5-7B-Instruct
+Results will be written to qwen_2_5_7b_zh_cn_en_philosophy_preferences_local_direct.jsonl
+Error on sample 0: list indices must be integers or slices, not str
+Error on sample 1: list indices must be integers or slices, not str
+Collected 0 valid preferences
+Collected results for configuration:  Config(model=<Model.QWEN_2_5_7B_INSTRUCT: 'Qwen/Qwen2.5-7B-Instruct'>, lang1='zh_cn', lang2='en', subject='philosophy', result_type=<ResultType.PREFERENCE_DIRECT: 1>)
+Processing configuration:  Config(model=<Model.QWEN_2_5_7B_INSTRUCT: 'Qwen/Qwen2.5-7B-Instruct'>, lang1='zh_cn', lang2='en', subject='philosophy', result_type=<ResultType.PREFERENCE_THINKING: 2>)
+
+============================================================
+Generating answer pair datasets for zh_cn and en
+Subject: philosophy
+============================================================
+
+Loading datasets...
+Loading dataset for language: zh_cn...
+Filtering by subject: philosophy
+Processing up to 11478/11478 samples...
+Successfully loaded and normalized 311 samples
+Loading dataset for language: en...
+Filtering by subject: philosophy
+Processing up to 11478/11478 samples...
+Successfully loaded and normalized 311 samples
+Dataset sizes: zh_cn=311, en=311, en=311
+Will process 311 samples
+
+Saving datasets...
+  Saved 311 entries to datasets/pair_zh_cn_correct_en_incorrect_philosophy.jsonl
+  Saved 311 entries to datasets/pair_zh_cn_incorrect_en_correct_philosophy.jsonl
+
+============================================================
+Successfully generated 311 answer pairs
+============================================================
+
+Reusing cached model: Qwen/Qwen2.5-7B-Instruct
+Using model interface: QwenModelInterface
+
+Collecting preferences with reasoning using local LLM: Qwen/Qwen2.5-7B-Instruct
+Results will be written to qwen_2_5_7b_zh_cn_en_philosophy_preferences_local_thinking.jsonl
+Error on sample 0: list indices must be integers or slices, not str
+Error on sample 1: list indices must be integers or slices, not str
+Collected 0 valid preferences
+Collected results for configuration:  Config(model=<Model.QWEN_2_5_7B_INSTRUCT: 'Qwen/Qwen2.5-7B-Instruct'>, lang1='zh_cn', lang2='en', subject='philosophy', result_type=<ResultType.PREFERENCE_THINKING: 2>)
+Processing configuration:  Config(model=<Model.QWEN_2_5_7B_INSTRUCT: 'Qwen/Qwen2.5-7B-Instruct'>, lang1='zh_cn', lang2='en', subject='philosophy', result_type=<ResultType.PERPLEXITY: 3>)
+
+============================================================
+Generating answer pair datasets for zh_cn and en
+Subject: philosophy
+============================================================
+
+Loading datasets...
+Loading dataset for language: zh_cn...
+Filtering by subject: philosophy
+Processing up to 11478/11478 samples...
+Successfully loaded and normalized 311 samples
+Loading dataset for language: en...
+Filtering by subject: philosophy
+Processing up to 11478/11478 samples...
+Successfully loaded and normalized 311 samples
+Dataset sizes: zh_cn=311, en=311, en=311
+Will process 311 samples
+
+Saving datasets...
+  Saved 311 entries to datasets/pair_zh_cn_correct_en_incorrect_philosophy.jsonl
+  Saved 311 entries to datasets/pair_zh_cn_incorrect_en_correct_philosophy.jsonl
+
+============================================================
+Successfully generated 311 answer pairs
+============================================================
+
+Reusing cached model: Qwen/Qwen2.5-7B-Instruct
+Using model interface: QwenModelInterface
+
+Calculating perplexities using local LLM: Qwen/Qwen2.5-7B-Instruct
+Results will be written to qwen_2_5_7b_zh_cn_en_philosophy_perplexities_local.jsonl
+Error on sample 0: list indices must be integers or slices, not str
+Error on sample 1: list indices must be integers or slices, not str
+Calculated perplexities for 0 samples
+Collected results for configuration:  Config(model=<Model.QWEN_2_5_7B_INSTRUCT: 'Qwen/Qwen2.5-7B-Instruct'>, lang1='zh_cn', lang2='en', subject='philosophy', result_type=<ResultType.PERPLEXITY: 3>)
