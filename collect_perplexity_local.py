@@ -137,9 +137,12 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
                     pair['lang2']
                 )
 
+                preference = 1 if perplexity_lang1 < perplexity_lang2 else 2
+
                 # Write result immediately
                 result = {
                     'index': i,
+                    'preference': preference,
                     'perplexity_lang1': perplexity_lang1,
                     'perplexity_lang2': perplexity_lang2,
                     'question': pair['question'],
