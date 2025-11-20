@@ -1,0 +1,4 @@
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:05,  1.89s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:03<00:03,  1.87s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:05<00:01,  1.86s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:07<00:00,  1.79s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:07<00:00,  1.82s/it]
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+The attention mask is not set and cannot be inferred from input because pad token is same as eos token. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
