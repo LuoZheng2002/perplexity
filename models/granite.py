@@ -37,10 +37,10 @@ class GraniteModelInterface(ModelInterface):
         """
         return "<|im_start|>assistant\n"
 
-    def build_messages_for_perplexity(self, tokenizer: Any, question: str, answer: str,
-                                     language: str) -> str:
+    def build_messages_for_perplexity_forward(self, tokenizer: Any, question: str, answer: str,
+                                             language: str) -> str:
         """
-        Build the message structure for perplexity calculation and apply chat template.
+        Build the message structure for perplexity calculation (forward pass) and apply chat template.
 
         Args:
             tokenizer: The model's tokenizer
@@ -69,6 +69,38 @@ class GraniteModelInterface(ModelInterface):
             messages,
             tokenize=False,
             add_generation_prompt=False
+        )
+
+    def build_messages_for_perplexity_generate(self, tokenizer: Any, question: str,
+                                              language: str) -> str:
+        """
+        Build the message structure for answer generation and apply chat template.
+
+        Args:
+            tokenizer: The model's tokenizer
+            question: The user's question
+            language: Formal language name (e.g., "Chinese", "English")
+
+        Returns:
+            Formatted conversation string after applying chat template with generation prompt
+        """
+        # Build language-specific instructions
+        if language.lower() == "english":
+            instruction = "Please answer the question in English with a concise phrase instead of a complete sentence. Start with an uncapitalized first word."
+        else:
+            instruction = f"Please answer the question in {language} with a concise phrase instead of a complete sentence."
+
+        # Combine question with instruction
+        user_content = f"{question}\n\n{instruction}"
+
+        messages = [
+            {"role": "system", "content": self.get_system_message()},
+            {"role": "user", "content": user_content}
+        ]
+        return tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
         )
 
     def build_messages_for_compare_directly(self, tokenizer: Any, question: str,

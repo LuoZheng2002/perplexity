@@ -43,14 +43,15 @@ class ModelInterface(ABC):
         pass
 
     @abstractmethod
-    def build_messages_for_perplexity(self, tokenizer: Any, question: str, answer: str,
-                                     language: str) -> str:
+    def build_messages_for_perplexity_forward(self, tokenizer: Any, question: str, answer: str,
+                                             language: str) -> str:
         """
-        Build the message structure for perplexity calculation and apply chat template.
+        Build the message structure for perplexity calculation (forward pass) and apply chat template.
 
         The prompt includes language-specific instructions to encourage the model to
         respond in the target language with concise phrasing. For English, an
-        uncapitalized first word is encouraged.
+        uncapitalized first word is encouraged. This variant includes the answer in
+        the messages and uses add_generation_prompt=False for perplexity calculation.
 
         Args:
             tokenizer: The model's tokenizer
@@ -60,6 +61,27 @@ class ModelInterface(ABC):
 
         Returns:
             Formatted conversation string after applying chat template
+        """
+        pass
+
+    @abstractmethod
+    def build_messages_for_perplexity_generate(self, tokenizer: Any, question: str,
+                                              language: str) -> str:
+        """
+        Build the message structure for answer generation and apply chat template.
+
+        The prompt includes language-specific instructions to encourage the model to
+        respond in the target language with concise phrasing. For English, an
+        uncapitalized first word is encouraged. This variant does NOT include the answer
+        and uses add_generation_prompt=True to prompt the model to generate its own answer.
+
+        Args:
+            tokenizer: The model's tokenizer
+            question: The user's question
+            language: Formal language name (e.g., "Chinese", "English")
+
+        Returns:
+            Formatted conversation string after applying chat template with generation prompt
         """
         pass
 

@@ -2,6 +2,27 @@ import os
 import json
 import math
 
+
+def language_abbreviation_to_name(abbreviation):
+    """
+    Map language abbreviation to full language name.
+    """
+    lang_map = {
+        'en': 'English',
+        'fr': 'French',
+        'de': 'German',
+        'es': 'Spanish',
+        'it': 'Italian',
+        'pt': 'Portuguese',
+        'zh_cn': 'Chinese',
+        'ja': 'Japanese',
+        'ko': 'Korean',
+        # Add more mappings as needed
+    }
+    assert isinstance(abbreviation, str), "Language abbreviation must be a string"
+    assert abbreviation in lang_map or len(abbreviation) > 2, f"Unknown language abbreviation: {abbreviation}"
+    return lang_map.get(abbreviation, abbreviation)
+
 def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interface, output_file="perplexities_local.jsonl", device="cuda"):
     """
     Calculate the perplexity of each answer in the pairs using a local LLM.
@@ -37,7 +58,9 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
                     processed_indices.add(idx)
                     results_dict[idx] = {
                         'perplexity_lang1': result.get('perplexity_lang1'),
-                        'perplexity_lang2': result.get('perplexity_lang2')
+                        'perplexity_lang2': result.get('perplexity_lang2'),
+                        'generated_answer_lang1': result.get('generated_answer_lang1'),
+                        'generated_answer_lang2': result.get('generated_answer_lang2')
                     }
         print(f"Found {len(processed_indices)} already processed samples")
     if len(processed_indices) == len(pairs):
@@ -55,7 +78,7 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
         """
         # Build formatted conversation text using model-specific interface
         try:
-            full_chat_text = model_interface.build_messages_for_perplexity(
+            full_chat_text = model_interface.build_messages_for_perplexity_forward(
                 tokenizer, question, answer, language_name
             )
         except Exception as e:
@@ -117,6 +140,44 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
             print(f"Error calculating perplexity: {e}")
             return None
 
+    def generate_answer(question, language_name: str):
+        """
+        Generate an answer to the question using the model.
+        Uses chat template formatting with add_generation_prompt=True.
+        Returns the generated answer text.
+        """
+        try:
+            # Build formatted conversation text using model-specific interface
+            prompt_text = model_interface.build_messages_for_perplexity_generate(
+                tokenizer, question, language_name
+            )
+        except Exception as e:
+            print(f"Error building messages for generation: {e}")
+            return None
+
+        # Tokenize the prompt
+        tokenized = tokenizer(prompt_text, return_tensors="pt")
+        input_ids = tokenized.input_ids.to(device)
+
+        try:
+            with torch.no_grad():
+                # Generate answer
+                output_ids = model.generate(
+                    input_ids,
+                    max_new_tokens=100,
+                    do_sample=False,
+                    pad_token_id=tokenizer.eos_token_id
+                )
+
+                # Decode only the generated tokens (excluding the prompt)
+                generated_ids = output_ids[0][input_ids.shape[1]:]
+                generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
+
+                return generated_text.strip()
+        except Exception as e:
+            print(f"Error generating answer: {e}")
+            return None
+
     # Open file in append mode
     with open(output_file, 'a', encoding='utf-8') as f:
         for i, pair in enumerate(pairs):
@@ -125,18 +186,33 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
                 continue
 
             try:
+                language_name1 = language_abbreviation_to_name(pair['lang1'])
+                language_name2 = language_abbreviation_to_name(pair['lang2'])
                 # Calculate perplexity for lang1 answer
                 perplexity_lang1 = calculate_answer_perplexity(
                     pair['question'],
                     pair['answer1'],
-                    pair['lang1']
+                    language_name1
                 )
 
                 # Calculate perplexity for lang2 answer
                 perplexity_lang2 = calculate_answer_perplexity(
                     pair['question'],
                     pair['answer2'],
-                    pair['lang2']
+                    language_name2
+                )
+
+                
+
+                # Generate answers for both languages
+                generated_answer_lang1 = generate_answer(
+                    pair['question'],
+                    language_name1
+                )
+
+                generated_answer_lang2 = generate_answer(
+                    pair['question'],
+                    language_name2
                 )
 
                 preference = 1 if perplexity_lang1 < perplexity_lang2 else 2
@@ -147,6 +223,8 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
                     'preference': preference,
                     'perplexity_lang1': perplexity_lang1,
                     'perplexity_lang2': perplexity_lang2,
+                    'generated_answer_lang1': generated_answer_lang1,
+                    'generated_answer_lang2': generated_answer_lang2,
                     'question': pair['question'],
                     'answer1': pair['answer1'],
                     'answer2': pair['answer2'],
@@ -160,7 +238,9 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
 
                 results_dict[i] = {
                     'perplexity_lang1': perplexity_lang1,
-                    'perplexity_lang2': perplexity_lang2
+                    'perplexity_lang2': perplexity_lang2,
+                    'generated_answer_lang1': generated_answer_lang1,
+                    'generated_answer_lang2': generated_answer_lang2
                 }
 
                 if (len(results_dict)) % 5 == 0:
@@ -173,6 +253,8 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
                     'index': i,
                     'perplexity_lang1': None,
                     'perplexity_lang2': None,
+                    'generated_answer_lang1': None,
+                    'generated_answer_lang2': None,
                     'error': str(e),
                     'model': model_name
                 }
@@ -180,7 +262,9 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
                 f.flush()
                 results_dict[i] = {
                     'perplexity_lang1': None,
-                    'perplexity_lang2': None
+                    'perplexity_lang2': None,
+                    'generated_answer_lang1': None,
+                    'generated_answer_lang2': None
                 }
 
     # Build final lists in order
