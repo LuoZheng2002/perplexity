@@ -275,7 +275,8 @@ if __name__ == "__main__":
                         model_name=model_name,
                         model_interface=model_interface,
                         output_file=f"result/{display_model_name}_{dataset_suffix}_{config.subject}_preferences_local_thinking.jsonl",
-                        device="cuda"
+                        device="cuda",
+                        batch_size=12
                     )
                 case ResultType.PERPLEXITY:
                     collect_perplexity_local(
