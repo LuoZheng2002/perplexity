@@ -392,7 +392,7 @@ if __name__ == "__main__":
         model_interface = create_model_interface(model_name)
         print(f"Using model interface: {model_interface.__class__.__name__}")
         match config.result_type:
-            case ResultType.PREFERENCE_QUALITATIVE_DIRECT:
+            case ResultType.PREFERENCE_DIRECT:
                 collect_preference_local_direct(
                     pairs=pairs,
                     model=model,

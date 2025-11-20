@@ -11,9 +11,8 @@ class Model(Enum):
     QWEN_2_5_72B_INSTRUCT = "Qwen/Qwen2.5-72B-Instruct"
 
 class ResultType(Enum):
-    PREFERENCE_QUALITATIVE_DIRECT = auto()
-    PREFERENCE_QUALITATIVE_THINKING = auto()
-    PREFERENCE_QUANTITATIVE_DIRECT = auto()
+    PREFERENCE_DIRECT = auto()
+    PREFERENCE_THINKING = auto()
     PERPLEXITY = auto()
 
 @dataclass(frozen=True)
@@ -26,5 +25,5 @@ class Config:
 
 
 configs = [
-    Config(Model.QWEN_2_5_7B_INSTRUCT, "zh_cn", "en", "philosophy"),
+    Config(Model.QWEN_2_5_7B_INSTRUCT, "zh_cn", "en", "philosophy", ResultType.PREFERENCE_DIRECT),
 ]

@@ -1,9 +1,23 @@
 import json
 import os
-import re
-def collect_preference_local_direct(pairs, model, tokenizer, model_name, model_interface, output_file="preferences_local.jsonl", device="cuda"):
+
+from config import ResultType
+
+
+def collect_preference_local_direct(
+        pairs,
+        model,
+        tokenizer,
+        model_name,
+        model_interface,
+        output_file="preferences_local.jsonl",
+        device="cuda"):
     """
-    Use a local LLM to judge which answer is better.
+    Use a local LLM to judge which answer is better by comparing log probabilities.
+
+    This function uses the model's forward pass to compute log probabilities for
+    choosing answer 1 vs answer 2, rather than generating text. The preference
+    is determined by which answer has the higher log probability.
 
     Args:
         pairs: List of question-answer pairs
@@ -15,10 +29,9 @@ def collect_preference_local_direct(pairs, model, tokenizer, model_name, model_i
         device: Device to use ("cuda" or "cpu")
 
     Returns:
-        List of preferences (1 if answer from lang1 is better, 2 if answer from lang2 is better)
+        List of preferences (1 if answer1 is better, 2 if answer2 is better)
     """
     import torch
-
     # Load already processed samples if file exists
     processed_indices = set()
     results_dict = {}
@@ -50,62 +63,56 @@ def collect_preference_local_direct(pairs, model, tokenizer, model_name, model_i
                 formatted_prompt = model_interface.build_messages_for_compare_directly(
                     tokenizer,
                     pair['question'],
-                    pair['answer_lang1'],
-                    pair['answer_lang2']
+                    pair['answer1'],
+                    pair['answer2']
                 )
 
                 # Tokenize the formatted prompt
                 inputs = tokenizer(formatted_prompt, return_tensors="pt", truncation=True, max_length=1024)
-                inputs = {k: v.to(device) for k, v in inputs.items()}
+                input_ids = inputs['input_ids'].to(device)
 
-                # Generate response
+                # Get token IDs for "1" and "2"
+                token_1 = tokenizer.encode("1", add_special_tokens=False)[0]
+                token_2 = tokenizer.encode("2", add_special_tokens=False)[0]
+
+                # Run forward pass to get logits for the next token
                 with torch.no_grad():
-                    output_ids = model.generate(
-                        **inputs,
-                        max_new_tokens=200,
-                        temperature=0.0,
-                        top_p=1.0,
-                        do_sample=False,
-                        pad_token_id=tokenizer.pad_token_id,
-                        eos_token_id=tokenizer.eos_token_id
-                    )
+                    outputs = model(input_ids)
+                    logits = outputs.logits  # shape: [1, seq_len, vocab_size]
 
-                # Decode the output (skip the input tokens)
-                raw_answer = tokenizer.decode(
-                    output_ids[0][inputs['input_ids'].shape[1]:],
-                    skip_special_tokens=True
-                ).strip()
+                    # Get logits for the next token (after the prompt)
+                    next_token_logits = logits[0, -1, :]  # shape: [vocab_size]
 
-                # Extract the boxed answer
-                match = re.search(r'\\boxed\{(\d+)\}', raw_answer)
-                error_msg = None
+                    # Compute log probabilities
+                    log_probs = torch.nn.functional.log_softmax(next_token_logits, dim=-1)
 
-                if match:
-                    preference = int(match.group(1))
-                    if preference not in [1, 2]:
-                        error_msg = f"Invalid preference value in boxed answer: {preference}"
-                        preference = 0
-                else:
-                    # Could not find boxed answer
-                    error_msg = "LLM did not include decision in \\boxed{} format"
-                    preference = 0
-                    print(f"  Warning: Could not parse answer for sample {i}, setting preference to 0")
+                    # Extract log probabilities for tokens "1" and "2"
+                    log_prob_1 = log_probs[token_1].item()
+                    log_prob_2 = log_probs[token_2].item()
+
+                    # Calculate difference (log_prob_1 - log_prob_2)
+                    log_prob_diff = log_prob_1 - log_prob_2
+
+                    # Determine preference based on higher log probability
+                    if log_prob_1 > log_prob_2:
+                        preference = 1
+                    else:
+                        preference = 2
 
                 # Write result immediately
                 result = {
                     'index': i,
                     'preference': preference,
-                    'raw_answer': raw_answer,
+                    'log_prob_1': log_prob_1,
+                    'log_prob_2': log_prob_2,
+                    'log_prob_diff': log_prob_diff,
                     'question': pair['question'],
-                    'answer_lang1': pair['answer_lang1'],
-                    'answer_lang2': pair['answer_lang2'],
+                    'answer1': pair['answer1'],
+                    'answer2': pair['answer2'],
                     'lang1': pair['lang1'],
                     'lang2': pair['lang2'],
                     'model': model_name
                 }
-
-                if error_msg:
-                    result['error'] = error_msg
 
                 f.write(json.dumps(result, ensure_ascii=False) + '\n')
                 f.flush()
@@ -121,7 +128,9 @@ def collect_preference_local_direct(pairs, model, tokenizer, model_name, model_i
                 result = {
                     'index': i,
                     'preference': None,
-                    'raw_answer': None,
+                    'log_prob_1': None,
+                    'log_prob_2': None,
+                    'log_prob_diff': None,
                     'error': str(e),
                     'model': model_name
                 }
