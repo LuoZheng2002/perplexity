@@ -25,7 +25,7 @@ class Config:
 
 
 configs = [
-    Config(Model.QWEN_2_5_7B_INSTRUCT, "zh_cn", "en", "philosophy", ResultType.PREFERENCE_DIRECT),
-    Config(Model.QWEN_2_5_7B_INSTRUCT, "zh_cn", "en", "philosophy", ResultType.PERPLEXITY),
-    Config(Model.QWEN_2_5_7B_INSTRUCT, "zh_cn", "en", "philosophy", ResultType.PREFERENCE_THINKING),    
+    Config(Model.QWEN_2_5_32B_INSTRUCT, "zh_cn", "en", "philosophy", ResultType.PREFERENCE_DIRECT),
+    Config(Model.QWEN_2_5_32B_INSTRUCT, "zh_cn", "en", "philosophy", ResultType.PERPLEXITY),
+    Config(Model.QWEN_2_5_32B_INSTRUCT, "zh_cn", "en", "philosophy", ResultType.PREFERENCE_THINKING),    
 ]
