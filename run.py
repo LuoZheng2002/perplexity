@@ -3,7 +3,7 @@ LLM as Judge: Exploring the relationship between perplexity and preference
 """
 import os
 
-from collect_preference_local_qualitative import collect_preference_local_qualitative
+from collect_preference_local_direct import collect_preference_local_direct
 from generate_dataset import generate_answer_pair_datasets
 os.environ["HF_HOME"] = "/work/nvme/bfdz/zluo8/huggingface"
 import sys
@@ -396,21 +396,7 @@ if __name__ == "__main__":
         # Create model interface for model-specific behavior
         model_interface = create_model_interface(model_name)
         print(f"Using model interface: {model_interface.__class__.__name__}")
+        match config.result_type:
+            case ResultType.PREFERENCE_QUALITATIVE_DIRECT:
+                collect_preference_local_direct()
 
-        # Collect preferences
-        print("\n" + "="*60)
-        print("STEP 4: Collecting Preferences")
-        print("="*60)
-        preferences = collect_preference_local_qualitative(pairs, model, tokenizer, model_name, answer_directly=False, output_file="preferences_local.jsonl")
-
-        # Calculate perplexities
-        print("\n" + "="*60)
-        print("STEP 5: Calculating Perplexities")
-        print("="*60)
-        perplexities_lang1, perplexities_lang2 = collect_perplexity_local(pairs, model, tokenizer, model_name, model_interface, output_file="perplexities_local.jsonl")
-
-        # Compare results
-        print("\n" + "="*60)
-        print("STEP 6: Analyzing Results")
-        print("="*60)
-        compare_results(preferences, perplexities_lang1, perplexities_lang2, "zh_cn", "en")

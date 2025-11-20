@@ -10,12 +10,19 @@ class Model(Enum):
     QWEN_2_5_32B_INSTRUCT = "Qwen/Qwen2.5-32B-Instruct"
     QWEN_2_5_72B_INSTRUCT = "Qwen/Qwen2.5-72B-Instruct"
 
+class ResultType(Enum):
+    PREFERENCE_QUALITATIVE_DIRECT = auto()
+    PREFERENCE_QUALITATIVE_THINKING = auto()
+    PREFERENCE_QUANTITATIVE_DIRECT = auto()
+    PERPLEXITY = auto()
+
 @dataclass(frozen=True)
 class Config:
     model: Model
     lang1: str
     lang2: str
     subject: str
+    result_type: ResultType
 
 
 configs = [
