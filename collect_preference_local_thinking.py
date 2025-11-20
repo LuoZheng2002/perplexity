@@ -78,6 +78,9 @@ def collect_preference_local_thinking(
             batch_indices = [item[0] for item in batch]
             batch_pairs = [item[1] for item in batch]
 
+            # Save original padding side and set to left for decoder-only models
+            original_padding_side = tokenizer.padding_side
+
             try:
                 # Build formatted prompts for all samples in batch
                 formatted_prompts = []
@@ -89,6 +92,9 @@ def collect_preference_local_thinking(
                         pair['answer2']
                     )
                     formatted_prompts.append(formatted_prompt)
+
+                # Set padding side to left for decoder-only models
+                tokenizer.padding_side = 'left'
 
                 # Tokenize the batch with padding
                 inputs = tokenizer(
@@ -190,6 +196,10 @@ def collect_preference_local_thinking(
                     f.write(json.dumps(result, ensure_ascii=False) + '\n')
                     f.flush()
                     results_dict[i] = None
+
+            finally:
+                # Always restore original padding side
+                tokenizer.padding_side = original_padding_side
 
     # Build final list in order
     print("\nPreference collection completed.")
