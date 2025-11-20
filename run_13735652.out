@@ -4,3 +4,57 @@ Loaded 311 samples from datasets/pair_en_incorrect_zh_cn_correct_philosophy.json
 Initializing new model: Qwen/Qwen2.5-7B-Instruct
 Loading model: Qwen/Qwen2.5-7B-Instruct
 Using device: cuda
+Using model interface: QwenModelInterface
+Loading existing results from result/qwen_2_5_7b_en_correct_zh_cn_incorrect_philosophy_preferences_local_direct.jsonl...
+Found 311 already processed samples
+All samples already processed. Exiting.
+Loading existing results from result/qwen_2_5_7b_en_incorrect_zh_cn_correct_philosophy_preferences_local_direct.jsonl...
+Found 311 already processed samples
+All samples already processed. Exiting.
+Collected results for configuration:  Config(model=<Model.QWEN_2_5_7B_INSTRUCT: 'Qwen/Qwen2.5-7B-Instruct'>, lang1='zh_cn', lang2='en', subject='philosophy', result_type=<ResultType.PREFERENCE_DIRECT: 1>)
+Processing configuration:  Config(model=<Model.QWEN_2_5_7B_INSTRUCT: 'Qwen/Qwen2.5-7B-Instruct'>, lang1='zh_cn', lang2='en', subject='philosophy', result_type=<ResultType.PERPLEXITY: 3>)
+Loaded 311 samples from datasets/pair_en_correct_zh_cn_incorrect_philosophy.jsonl
+Loaded 311 samples from datasets/pair_en_incorrect_zh_cn_correct_philosophy.jsonl
+Reusing cached model: Qwen/Qwen2.5-7B-Instruct
+Using model interface: QwenModelInterface
+Loading existing results from result/qwen_2_5_7b_en_correct_zh_cn_incorrect_philosophy_perplexities_local.jsonl...
+Found 311 already processed samples
+All samples already processed. Exiting.
+Loading existing results from result/qwen_2_5_7b_en_incorrect_zh_cn_correct_philosophy_perplexities_local.jsonl...
+Found 311 already processed samples
+All samples already processed. Exiting.
+Collected results for configuration:  Config(model=<Model.QWEN_2_5_7B_INSTRUCT: 'Qwen/Qwen2.5-7B-Instruct'>, lang1='zh_cn', lang2='en', subject='philosophy', result_type=<ResultType.PERPLEXITY: 3>)
+Processing configuration:  Config(model=<Model.QWEN_2_5_7B_INSTRUCT: 'Qwen/Qwen2.5-7B-Instruct'>, lang1='zh_cn', lang2='en', subject='philosophy', result_type=<ResultType.PREFERENCE_THINKING: 2>)
+Loaded 311 samples from datasets/pair_en_correct_zh_cn_incorrect_philosophy.jsonl
+Loaded 311 samples from datasets/pair_en_incorrect_zh_cn_correct_philosophy.jsonl
+Reusing cached model: Qwen/Qwen2.5-7B-Instruct
+Using model interface: QwenModelInterface
+Loading existing results from result/qwen_2_5_7b_en_correct_zh_cn_incorrect_philosophy_preferences_local_thinking.jsonl...
+Found 19 already processed samples
+
+Collecting preferences with reasoning using local LLM: Qwen/Qwen2.5-7B-Instruct
+Results will be written to result/qwen_2_5_7b_en_correct_zh_cn_incorrect_philosophy_preferences_local_thinking.jsonl
+Batch size: 12
+Samples to process: 292
+  Processed 55/311 samples
+  Processed 115/311 samples
+  Processed 175/311 samples
+  Processed 235/311 samples
+  Processed 295/311 samples
+  Processed 311/311 samples
+
+Preference collection completed.
+
+Collecting preferences with reasoning using local LLM: Qwen/Qwen2.5-7B-Instruct
+Results will be written to result/qwen_2_5_7b_en_incorrect_zh_cn_correct_philosophy_preferences_local_thinking.jsonl
+Batch size: 12
+Samples to process: 311
+  Processed 60/311 samples
+  Processed 120/311 samples
+  Processed 180/311 samples
+  Processed 240/311 samples
+  Processed 300/311 samples
+  Processed 311/311 samples
+
+Preference collection completed.
+Collected results for configuration:  Config(model=<Model.QWEN_2_5_7B_INSTRUCT: 'Qwen/Qwen2.5-7B-Instruct'>, lang1='zh_cn', lang2='en', subject='philosophy', result_type=<ResultType.PREFERENCE_THINKING: 2>)
