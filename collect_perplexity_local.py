@@ -95,8 +95,10 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
                 shift_labels = input_ids[:, 1:]
 
                 # Create mask: only keep positions inside the assistant answer span
+                # Note: answer_start/answer_end are in original input_ids coordinates,
+                # but shift_labels is offset by 1, so we need to adjust indices
                 mask = torch.zeros_like(shift_labels, dtype=torch.bool)
-                mask[0, answer_start:answer_end] = True
+                mask[0, answer_start-1:answer_end-1] = True
 
                 # Compute log probabilities
                 log_probs = torch.nn.functional.log_softmax(shift_logits, dim=-1)
