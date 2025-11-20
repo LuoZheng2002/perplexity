@@ -40,6 +40,9 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
                         'perplexity_lang2': result.get('perplexity_lang2')
                     }
         print(f"Found {len(processed_indices)} already processed samples")
+    if len(processed_indices) == len(pairs):
+        print("All samples already processed. Exiting.")
+        return
 
     print(f"\nCalculating perplexities using local LLM: {model_name}")
     print(f"Results will be written to {output_file}")
@@ -176,8 +179,4 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
                 }
 
     # Build final lists in order
-    perplexities_lang1 = [results_dict.get(i, {}).get('perplexity_lang1') for i in range(len(pairs))]
-    perplexities_lang2 = [results_dict.get(i, {}).get('perplexity_lang2') for i in range(len(pairs))]
-
-    print(f"Calculated perplexities for {len([p for p in perplexities_lang1 if p is not None])} samples")
-    return perplexities_lang1, perplexities_lang2
+    print("\nPerplexity calculation completed.")

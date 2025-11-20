@@ -48,6 +48,9 @@ def collect_preference_local_thinking(
                     processed_indices.add(idx)
                     results_dict[idx] = result['preference']
         print(f"Found {len(processed_indices)} already processed samples")
+    if len(processed_indices) == len(pairs):
+        print("All samples already processed. Exiting.")
+        return
 
     print(f"\nCollecting preferences with reasoning using local LLM: {model_name}")
     print(f"Results will be written to {output_file}")
@@ -145,6 +148,4 @@ def collect_preference_local_thinking(
                 results_dict[i] = None
 
     # Build final list in order
-    preferences = [results_dict.get(i, None) for i in range(len(pairs))]
-    print(f"Collected {len([p for p in preferences if p is not None])} valid preferences")
-    return preferences
+    print("\nPreference collection completed.")
