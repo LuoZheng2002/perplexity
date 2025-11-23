@@ -230,7 +230,7 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
                     'answer2': pair['answer2'],
                     'lang1': pair['lang1'],
                     'lang2': pair['lang2'],
-                    'model': model_name
+                    'model': model_name,
                 }
 
                 f.write(json.dumps(result, ensure_ascii=False) + '\n')

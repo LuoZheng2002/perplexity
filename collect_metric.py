@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Callable, Optional
 
 from calculate_accuracy import calculate_accuracy
 from calculate_correlation import calculate_pearson_correlation
@@ -7,13 +8,13 @@ from calculate_bias_binary import calculate_bias_binary
 from calculate_bias_continuous import calculate_bias_continuous
 
 
-def load_jsonl(file_path, subject=None):
+def load_jsonl(file_path, subject_filter: Optional[Callable[[str], bool]] = None):
     """
     Load JSONL file and return a dictionary indexed by 'index' field.
 
     Args:
         file_path: Path to the JSONL file
-        subject: Optional subject to filter samples by
+        subject_filter: Optional function that takes a subject name and returns True to keep the sample
 
     Returns:
         Dict mapping index to sample dict
@@ -23,20 +24,20 @@ def load_jsonl(file_path, subject=None):
         for line in f:
             if line.strip():
                 item = json.loads(line)
-                # Filter by subject if specified
-                if subject is not None and item.get('subject') != subject:
+                # Filter by subject if filter is specified
+                if subject_filter is not None and not subject_filter(item.get('subject', '')):
                     continue
                 data[item['index']] = item
     return data
 
 
-def load_jsonl_as_list(file_path, subject=None):
+def load_jsonl_as_list(file_path, subject_filter: Optional[Callable[[str], bool]] = None):
     """
     Load JSONL file and return a list of samples.
 
     Args:
         file_path: Path to the JSONL file
-        subject: Optional subject to filter samples by
+        subject_filter: Optional function that takes a subject name and returns True to keep the sample
 
     Returns:
         List of sample dicts
@@ -46,8 +47,8 @@ def load_jsonl_as_list(file_path, subject=None):
         for line in f:
             if line.strip():
                 item = json.loads(line)
-                # Filter by subject if specified
-                if subject is not None and item.get('subject') != subject:
+                # Filter by subject if filter is specified
+                if subject_filter is not None and not subject_filter(item.get('subject', '')):
                     continue
                 samples.append(item)
     return samples
@@ -99,12 +100,14 @@ def get_correct_preference(lang_pair):
         raise ValueError(f"Cannot determine correct preference from lang_pair: {lang_pair}")
 
 
-def collect_metric(subject):
+def collect_metric(subject_filter_name: str, subject_filter: Callable[[str], bool]):
     """
-    Collect all metrics for a given subject and output to result/metrics/[model_name]_[subject].json
+    Collect all metrics for samples matching the subject filter.
+    Output to result/metrics/[model_name]_[subject_filter_name].json
 
     Args:
-        subject: The subject to filter samples by
+        subject_filter_name: Name of the subject filter (e.g., "stem", "humanities")
+        subject_filter: Function that takes a subject name and returns True to keep the sample
     """
     result_dir = Path("result")
     metrics_dir = result_dir / "metrics"
@@ -124,7 +127,7 @@ def collect_metric(subject):
 
         metrics = {
             "model": model_name,
-            "subject": subject,
+            "subject_filter": subject_filter_name,
             "accuracy": {},
             "correlation": {},
             "bias_binary": {},
@@ -136,7 +139,7 @@ def collect_metric(subject):
             metrics["accuracy"][result_type] = {}
             for lang_pair, file_path in files.items():
                 try:
-                    samples = load_jsonl_as_list(file_path, subject)
+                    samples = load_jsonl_as_list(file_path, subject_filter)
                     correct_preference = get_correct_preference(lang_pair)
                     accuracy, correct, total = calculate_accuracy(samples, correct_preference)
                     metrics["accuracy"][result_type][lang_pair] = {
@@ -158,8 +161,8 @@ def collect_metric(subject):
                 preference_file = preference_direct_files[lang_pair]
 
                 # Load and filter data
-                perplexity_data = load_jsonl(perplexity_file, subject)
-                preference_data = load_jsonl(preference_file, subject)
+                perplexity_data = load_jsonl(perplexity_file, subject_filter)
+                preference_data = load_jsonl(preference_file, subject_filter)
 
                 try:
                     correlation, matches, total = calculate_pearson_correlation(
@@ -197,8 +200,8 @@ def collect_metric(subject):
                 file2 = preference_thinking_files[lang_pair]
 
                 # Load and filter data
-                data1 = load_jsonl(file1, subject)
-                data2 = load_jsonl(file2, subject)
+                data1 = load_jsonl(file1, subject_filter)
+                data2 = load_jsonl(file2, subject_filter)
 
                 try:
                     avg_bias, sum_abs_diff, total = calculate_bias_continuous(
@@ -214,20 +217,68 @@ def collect_metric(subject):
                     print(f"  Error calculating bias_continuous for {lang_pair}: {e}")
 
         # Write metrics to JSON file
-        output_file = metrics_dir / f"{model_name}_{subject}.json"
+        output_file = metrics_dir / f"{model_name}_{subject_filter_name}.json"
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(metrics, f, indent=2)
 
         print(f"  -> Metrics written to {output_file}")
 
 
+stem_subjects = {
+    # Mathematics
+        'abstract_algebra', 'college_mathematics', 'elementary_mathematics',
+        'high_school_mathematics', 'high_school_statistics', 'formal_logic'
+    # Physics & Chemistry
+        'astronomy', 'college_physics', 'high_school_physics',
+        'college_chemistry', 'high_school_chemistry', 'conceptual_physics',
+    # Biology & Medicine
+        'anatomy', 'college_biology', 'high_school_biology',
+        'clinical_knowledge', 'college_medicine', 'professional_medicine',
+        'medical_genetics', 'nutrition', 'virology', 'human_aging', 'human_sexuality',
+    # Computer Science
+        'college_computer_science', 'high_school_computer_science',
+        'computer_security', 'machine_learning',
+    # Engineering
+        'electrical_engineering'
+    }
+
+# Example subject filters
+def is_stem(subject: str) -> bool:
+    """Filter for STEM subjects."""
+    
+    return subject.lower() in stem_subjects
+
+def is_non_stem(subject: str) -> bool:
+    """Filter for non-STEM subjects."""
+    return subject.lower() not in stem_subjects
+
+
+def is_all(subject: str) -> bool:
+    """Filter that keeps all subjects."""
+    return True
+
+
 if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:
-        print("Usage: python collect_metric.py <subject>")
-        print("Example: python collect_metric.py philosophy")
+        print("Usage: python collect_metric.py <subject_filter_name>")
+        print("Example: python collect_metric.py stem")
+        print("Available filters: stem, humanities, all")
         sys.exit(1)
 
-    subject = sys.argv[1]
-    collect_metric(subject)
+    filter_name = sys.argv[1]
+
+    # Map filter names to filter functions
+    filters = {
+        "stem": is_stem,
+        "non_stem": is_non_stem,
+        "all": is_all,
+    }
+
+    if filter_name not in filters:
+        print(f"Unknown filter: {filter_name}")
+        print(f"Available filters: {', '.join(filters.keys())}")
+        sys.exit(1)
+
+    collect_metric(filter_name, filters[filter_name])
