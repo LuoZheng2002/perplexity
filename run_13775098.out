@@ -1,0 +1,12 @@
+Processing configuration:  Config(model=<Model.QWEN_3_30B_A3B: 'Qwen/Qwen3-30B-A3B'>, lang1='zh_cn', lang2='en', result_type=<ResultType.PREFERENCE_DIRECT: 1>)
+Loaded 11478 entries from datasets/en_correct.jsonl
+Loaded 11478 entries from datasets/en_incorrect.jsonl
+Loaded 11478 entries from datasets/zh_cn_correct.jsonl
+Loaded 11478 entries from datasets/zh_cn_incorrect.jsonl
+Created 11478 pairs for en_correct_zh_cn_incorrect
+Created 11478 pairs for en_incorrect_zh_cn_correct
+Created 11478 pairs for en_correct_zh_cn_correct
+Created 11478 pairs for en_incorrect_zh_cn_incorrect
+Initializing new model: Qwen/Qwen3-30B-A3B
+Loading model: Qwen/Qwen3-30B-A3B
+Using device: cuda

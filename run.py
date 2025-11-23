@@ -328,6 +328,8 @@ if __name__ == "__main__":
         model_interface = create_model_interface(model_name)
         print(f"Using model interface: {model_interface.__class__.__name__}")
 
+        batch_size = 8
+
         match config.result_type:
             case ResultType.PREFERENCE_DIRECT:
                 # Process pairs for preference_direct
@@ -346,7 +348,8 @@ if __name__ == "__main__":
                         model_name=model_name,
                         model_interface=model_interface,
                         output_file=f"{output_dir}/{dataset_suffix}.jsonl",
-                        device="cuda"
+                        device="cuda",
+                        batch_size=batch_size
                     )
 
             case ResultType.PREFERENCE_COT:
@@ -367,7 +370,7 @@ if __name__ == "__main__":
                         model_interface=model_interface,
                         output_file=f"{output_dir}/{dataset_suffix}.jsonl",
                         device="cuda",
-                        batch_size=1
+                        batch_size=batch_size
                     )
 
             case ResultType.PERPLEXITY:
@@ -387,10 +390,10 @@ if __name__ == "__main__":
                         model_name=model_name,
                         model_interface=model_interface,
                         output_file=f"{output_dir}/{entry_suffix}.jsonl",
-                        device="cuda"
+                        device="cuda",
+                        batch_size=batch_size
                     )
             case _:
                 print(f"Unknown result type: {config.result_type}")
                 raise ValueError(f"Unknown result type: {config.result_type}")
-
         print("Collected results for configuration: ", config)
