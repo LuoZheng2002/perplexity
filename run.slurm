@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:1                     # Request 1 GPU
 #SBATCH --cpus-per-task=4                # CPU cores
 #SBATCH --mem=16G                        # RAM
-#SBATCH --account=bfdz-delta-gpu    # Your Slurm account/project
+#SBATCH --account=bdns-delta-gpu    # Your Slurm account/project
 
 # Load modules or activate your environment
 module load python/3.12.1
