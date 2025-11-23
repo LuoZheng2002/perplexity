@@ -203,9 +203,13 @@ if __name__ == "__main__":
         # Load datasets from files
         dataset_file1 = f"datasets/pair_{first_lang}_correct_{second_lang}_incorrect.jsonl"
         dataset_file2 = f"datasets/pair_{first_lang}_incorrect_{second_lang}_correct.jsonl"
+        dataset_file3 = f"datasets/pair_{first_lang}_correct_{second_lang}_correct.jsonl"
+        dataset_file4 = f"datasets/pair_{first_lang}_incorrect_{second_lang}_incorrect.jsonl"
 
         dataset1 = []
         dataset2 = []
+        dataset3 = []
+        dataset4 = []
 
         with open(dataset_file1, 'r', encoding='utf-8') as f:
             for line in f:
@@ -217,8 +221,20 @@ if __name__ == "__main__":
                 if line.strip():
                     dataset2.append(json.loads(line))
 
+        with open(dataset_file3, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    dataset3.append(json.loads(line))
+
+        with open(dataset_file4, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    dataset4.append(json.loads(line))
+
         print(f"Loaded {len(dataset1)} samples from {dataset_file1}")
         print(f"Loaded {len(dataset2)} samples from {dataset_file2}")
+        print(f"Loaded {len(dataset3)} samples from {dataset_file3}")
+        print(f"Loaded {len(dataset4)} samples from {dataset_file4}")
 
         # Get or create model and tokenizer with caching
         model_name = config.model.value
@@ -251,10 +267,12 @@ if __name__ == "__main__":
         model_interface = create_model_interface(model_name)
         print(f"Using model interface: {model_interface.__class__.__name__}")
 
-        # Process both datasets
+        # Process all four datasets
         for dataset, dataset_suffix in [
             (dataset1, f"{first_lang}_correct_{second_lang}_incorrect"),
-            (dataset2, f"{first_lang}_incorrect_{second_lang}_correct")
+            (dataset2, f"{first_lang}_incorrect_{second_lang}_correct"),
+            (dataset3, f"{first_lang}_correct_{second_lang}_correct"),
+            (dataset4, f"{first_lang}_incorrect_{second_lang}_incorrect")
         ]:
             match config.result_type:
                 case ResultType.PREFERENCE_DIRECT:
