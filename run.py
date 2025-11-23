@@ -201,8 +201,8 @@ if __name__ == "__main__":
         second_lang = sorted_langs[1]
 
         # Load datasets from files
-        dataset_file1 = f"datasets/pair_{first_lang}_correct_{second_lang}_incorrect_{config.subject}.jsonl"
-        dataset_file2 = f"datasets/pair_{first_lang}_incorrect_{second_lang}_correct_{config.subject}.jsonl"
+        dataset_file1 = f"datasets/pair_{first_lang}_correct_{second_lang}_incorrect.jsonl"
+        dataset_file2 = f"datasets/pair_{first_lang}_incorrect_{second_lang}_correct.jsonl"
 
         dataset1 = []
         dataset2 = []

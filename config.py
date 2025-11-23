@@ -20,12 +20,11 @@ class Config:
     model: Model
     lang1: str
     lang2: str
-    subject: str
     result_type: ResultType
 
 
 configs = [
-    Config(Model.QWEN_2_5_32B_INSTRUCT, "zh_cn", "en", "philosophy", ResultType.PREFERENCE_DIRECT),
-    Config(Model.QWEN_2_5_32B_INSTRUCT, "zh_cn", "en", "philosophy", ResultType.PERPLEXITY),
-    Config(Model.QWEN_2_5_32B_INSTRUCT, "zh_cn", "en", "philosophy", ResultType.PREFERENCE_THINKING),    
+    Config(Model.QWEN_2_5_32B_INSTRUCT, "zh_cn", "en", ResultType.PREFERENCE_DIRECT),
+    Config(Model.QWEN_2_5_32B_INSTRUCT, "zh_cn", "en", ResultType.PERPLEXITY),
+    Config(Model.QWEN_2_5_32B_INSTRUCT, "zh_cn", "en", ResultType.PREFERENCE_THINKING),    
 ]

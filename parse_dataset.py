@@ -6,7 +6,7 @@ Handles inconsistent field naming conventions across language datasets.
 from datasets import load_dataset
 
 
-def parse_dataset(language="en", num_samples=None, subject=None):
+def parse_dataset(language="en", num_samples=None):
     """
     Load and parse dataset for a given language, returning normalized structure.
 
@@ -34,8 +34,6 @@ def parse_dataset(language="en", num_samples=None, subject=None):
         List of normalized sample dictionaries
     """
     print(f"Loading dataset for language: {language}...")
-    if subject:
-        print(f"Filtering by subject: {subject}")
 
     ds = load_dataset("willchow66/mmmlu-intersection-filtered", language)
 
@@ -56,12 +54,6 @@ def parse_dataset(language="en", num_samples=None, subject=None):
             break
 
         sample = train_split[i]
-
-        # Filter by subject if specified
-        if subject is not None:
-            sample_subject = sample.get('Subject') or sample.get('subject')
-            if sample_subject != subject:
-                continue
 
         normalized_sample = _normalize_sample(sample, language)
         normalized_data.append(normalized_sample)

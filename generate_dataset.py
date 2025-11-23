@@ -1,6 +1,6 @@
 
 
-def generate_answer_pair_datasets(lang1, lang2, subject):
+def generate_answer_pair_datasets(lang1, lang2):
     '''
     Load datasets from two languages and create bilingual answer pairs.
     If lang1 and lang2 are both not English, load the English dataset as well for questions.
@@ -46,18 +46,17 @@ def generate_answer_pair_datasets(lang1, lang2, subject):
 
     print(f"\n{'='*60}")
     print(f"Generating answer pair datasets for {lang1} and {lang2}")
-    print(f"Subject: {subject}")
     print(f"{'='*60}\n")
 
     # Load datasets
     print("Loading datasets...")
     [lang1, lang2] = sorted([lang1, lang2])
-    data_lang1 = parse_dataset(lang1, num_samples=None, subject=subject)
-    data_lang2 = parse_dataset(lang2, num_samples=None, subject=subject)
+    data_lang1 = parse_dataset(lang1, num_samples=None)
+    data_lang2 = parse_dataset(lang2, num_samples=None)
 
     # Load English dataset for questions if neither language is English
     if lang1 != "en" and lang2 != "en":
-        data_en = parse_dataset("en", num_samples=None, subject=subject)
+        data_en = parse_dataset("en", num_samples=None)
     else:
         # Use the English dataset that's already loaded
         data_en = data_lang1 if lang1 == "en" else data_lang2
@@ -143,8 +142,8 @@ def generate_answer_pair_datasets(lang1, lang2, subject):
     os.makedirs("datasets", exist_ok=True)
 
     # Save datasets to JSONL files
-    file1 = f"datasets/pair_{lang1}_correct_{lang2}_incorrect_{subject}.jsonl"
-    file2 = f"datasets/pair_{lang1}_incorrect_{lang2}_correct_{subject}.jsonl"
+    file1 = f"datasets/pair_{lang1}_correct_{lang2}_incorrect.jsonl"
+    file2 = f"datasets/pair_{lang1}_incorrect_{lang2}_correct.jsonl"
 
     print(f"Saving datasets...")
     with open(file1, 'w', encoding='utf-8') as f:
@@ -166,4 +165,4 @@ def generate_answer_pair_datasets(lang1, lang2, subject):
 
 if __name__ == "__main__":
     # Example usage
-    generate_answer_pair_datasets("zh_cn", "en", "philosophy")
+    generate_answer_pair_datasets("zh_cn", "en")

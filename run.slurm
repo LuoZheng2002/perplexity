@@ -4,8 +4,8 @@
 #SBATCH --error=run_%j.err         # Error log
 #SBATCH --time=00:20:00                 # Max runtime (HH:MM:SS)
 # #SBATCH --partition=gpu                  # Partition/queue with GPU
-#SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --mail-user=luozheng@usc.edu
+# #SBATCH --mail-type=BEGIN,END,FAIL
+# #SBATCH --mail-user=luozheng@usc.edu
 #SBATCH --gres=gpu:1                     # Request 1 GPU
 #SBATCH --cpus-per-task=4                # CPU cores
 #SBATCH --mem=16G                        # RAM
