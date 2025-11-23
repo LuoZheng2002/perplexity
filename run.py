@@ -258,34 +258,40 @@ if __name__ == "__main__":
         ]:
             match config.result_type:
                 case ResultType.PREFERENCE_DIRECT:
+                    output_dir = f"result/{display_model_name}/preferences_local_direct"
+                    os.makedirs(output_dir, exist_ok=True)
                     collect_preference_local_direct(
                         pairs=dataset,
                         model=model,
                         tokenizer=tokenizer,
                         model_name=model_name,
                         model_interface=model_interface,
-                        output_file=f"result/{display_model_name}_{dataset_suffix}_{config.subject}_preferences_local_direct.jsonl",
+                        output_file=f"{output_dir}/{dataset_suffix}.jsonl",
                         device="cuda"
                     )
                 case ResultType.PREFERENCE_THINKING:
+                    output_dir = f"result/{display_model_name}/preferences_local_thinking"
+                    os.makedirs(output_dir, exist_ok=True)
                     collect_preference_local_thinking(
                         pairs=dataset,
                         model=model,
                         tokenizer=tokenizer,
                         model_name=model_name,
                         model_interface=model_interface,
-                        output_file=f"result/{display_model_name}_{dataset_suffix}_{config.subject}_preferences_local_thinking.jsonl",
+                        output_file=f"{output_dir}/{dataset_suffix}.jsonl",
                         device="cuda",
                         batch_size=12
                     )
                 case ResultType.PERPLEXITY:
+                    output_dir = f"result/{display_model_name}/perplexities_local"
+                    os.makedirs(output_dir, exist_ok=True)
                     collect_perplexity_local(
                         pairs=dataset,
                         model=model,
                         tokenizer=tokenizer,
                         model_name=model_name,
                         model_interface=model_interface,
-                        output_file=f"result/{display_model_name}_{dataset_suffix}_{config.subject}_perplexities_local.jsonl",
+                        output_file=f"{output_dir}/{dataset_suffix}.jsonl",
                         device="cuda"
                     )
         print("Collected results for configuration: ", config)
