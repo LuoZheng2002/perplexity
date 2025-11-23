@@ -167,17 +167,20 @@ def collect_preference_local_cot(
 
                     except Exception as e:
                         print(f"Error processing sample {i} in batch: {e}")
-                        # Write error result
-                        result = {
-                            'index': i,
-                            'preference': None,
-                            'reasoning': None,
-                            'error': str(e),
-                            'model': model_name
-                        }
-                        f.write(json.dumps(result, ensure_ascii=False) + '\n')
-                        f.flush()
-                        results_dict[i] = None
+                        exit(1)
+                        # print(f"Error processing sample {i} in batch: {e}")
+                        # # Write error result
+                        # result = {
+                        #     'index': i,
+                        #     'preference': None,
+                        #     'reasoning': None,
+                        #     'error': str(e),
+                        #     'model': model_name,
+                        #     'subject': pair.get('subject', '')
+                        # }
+                        # f.write(json.dumps(result, ensure_ascii=False) + '\n')
+                        # f.flush()
+                        # results_dict[i] = None
 
                 # Progress update after each batch
                 if len(results_dict) % 5 == 0 or batch_end == len(unprocessed_samples):
@@ -185,18 +188,20 @@ def collect_preference_local_cot(
 
             except Exception as e:
                 print(f"Error processing batch starting at index {batch_start}: {e}")
-                # Write error results for all samples in the failed batch
-                for i, pair in batch:
-                    result = {
-                        'index': i,
-                        'preference': None,
-                        'reasoning': None,
-                        'error': f"Batch error: {str(e)}",
-                        'model': model_name
-                    }
-                    f.write(json.dumps(result, ensure_ascii=False) + '\n')
-                    f.flush()
-                    results_dict[i] = None
+                exit(1)
+                # # Write error results for all samples in the failed batch
+                # for i, pair in batch:
+                #     result = {
+                #         'index': i,
+                #         'preference': None,
+                #         'reasoning': None,
+                #         'error': f"Batch error: {str(e)}",
+                #         'model': model_name,
+                #         'subject': pair.get('subject', '')
+                #     }
+                #     f.write(json.dumps(result, ensure_ascii=False) + '\n')
+                #     f.flush()
+                #     results_dict[i] = None
 
             finally:
                 # Always restore original padding side

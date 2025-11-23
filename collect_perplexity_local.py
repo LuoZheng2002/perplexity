@@ -23,9 +23,10 @@ def language_abbreviation_to_name(abbreviation):
     assert abbreviation in lang_map or len(abbreviation) > 2, f"Unknown language abbreviation: {abbreviation}"
     return lang_map.get(abbreviation, abbreviation)
 
-def collect_perplexity_local(entries, model, tokenizer, model_name, model_interface, output_file="perplexities_local.jsonl", device="cuda"):
+
+def collect_perplexity_local(entries, model, tokenizer, model_name, model_interface, output_file="perplexities_local.jsonl", device="cuda", batch_size=4):
     """
-    Calculate the perplexity of each answer entry using a local LLM.
+    Calculate the perplexity of each answer entry using a local LLM with batch inference.
 
     Perplexity is calculated by getting the average log probability of tokens in the answer
     given the question context. Lower perplexity indicates the model finds the answer more likely.
@@ -44,6 +45,7 @@ def collect_perplexity_local(entries, model, tokenizer, model_name, model_interf
         model_interface: ModelInterface instance for model-specific behavior
         output_file: Output file for results
         device: Device to use ("cuda" or "cpu")
+        batch_size: Number of samples to process in parallel (default: 4)
 
     Returns:
         None (results are written to output_file)
@@ -73,178 +75,257 @@ def collect_perplexity_local(entries, model, tokenizer, model_name, model_interf
 
     print(f"\nCalculating perplexities using local LLM: {model_name}")
     print(f"Results will be written to {output_file}")
+    print(f"Batch size: {batch_size}")
 
-    def calculate_answer_perplexity(question, answer, language_name: str):
+    # Collect unprocessed samples
+    unprocessed_samples = []
+    for entry in entries:
+        if entry['index'] not in processed_indices:
+            unprocessed_samples.append(entry)
+
+    total_to_process = len(unprocessed_samples)
+    print(f"Samples to process: {total_to_process}")
+
+    # Save original padding side
+    original_padding_side = tokenizer.padding_side
+
+    def calculate_batch_perplexities(batch_entries):
         """
-        Calculate perplexity of an answer given a question.
-        Uses chat template formatting with system, user, and assistant messages.
-        Returns perplexity computed as exp(-avg_log_prob).
+        Calculate perplexities for a batch of entries.
+        Returns list of perplexity values (or None for errors).
         """
-        # Build formatted conversation text using model-specific interface
-        try:
-            full_chat_text = model_interface.build_messages_for_perplexity_forward(
-                tokenizer, question, answer, language_name
-            )
-        except Exception as e:
-            print(f"Error building messages for perplexity: {e}")
-            exit(1)
-        print("full chat text:\n", full_chat_text)
-        print("answer:\n", answer)
-        # Tokenize the full text
-        tokenized = tokenizer(full_chat_text, return_tensors="pt")
+        # Build formatted texts for all entries
+        formatted_texts = []
+        answer_infos = []  # Store answer token info for each entry
+
+        for entry in batch_entries:
+            language_name = language_abbreviation_to_name(entry['lang'])
+            try:
+                full_chat_text = model_interface.build_messages_for_perplexity_forward(
+                    tokenizer, entry['question'], entry['answer'], language_name
+                )
+                formatted_texts.append(full_chat_text)
+
+                # Get answer tokens
+                answer_tokens = tokenizer(entry['answer'], add_special_tokens=False).input_ids
+                answer_infos.append({
+                    'answer_tokens': answer_tokens,
+                    'answer_len': len(answer_tokens)
+                })
+            except Exception as e:
+                print(f"Error building messages for entry {entry['index']}: {e}")
+                exit(1)
+                # formatted_texts.append(None)
+                # answer_infos.append(None)
+
+        # Filter out None entries for batching
+        valid_indices = [i for i, t in enumerate(formatted_texts) if t is not None]
+        if not valid_indices:
+            return [None] * len(batch_entries)
+
+        valid_texts = [formatted_texts[i] for i in valid_indices]
+
+        # Set padding side to right for perplexity calculation (we need to know where answer ends)
+        tokenizer.padding_side = 'right'
+
+        # Tokenize batch
+        tokenized = tokenizer(
+            valid_texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=2048
+        )
         input_ids = tokenized.input_ids.to(device)
+        attention_mask = tokenized.attention_mask.to(device)
 
-        # Identify token range corresponding to the assistant answer
-        # Tokenize the answer separately to find its length
-        answer_tokens = tokenizer(answer, add_special_tokens=False).input_ids
-        answer_len = len(answer_tokens)
+        # Find answer positions for each valid entry
+        answer_positions = []
+        for batch_idx, orig_idx in enumerate(valid_indices):
+            info = answer_infos[orig_idx]
+            full_ids = input_ids[batch_idx].tolist()
 
-        # Find where answer tokens start in the full sequence
-        full_ids = input_ids[0].tolist()
+            try:
+                answer_start = model_interface.find_answer_start(
+                    tokenizer, full_ids, info['answer_tokens']
+                )
+                answer_end = answer_start + info['answer_len']
+                answer_positions.append((answer_start, answer_end))
+            except (ValueError, AttributeError) as e:
+                print(f"Could not find answer start for entry {batch_entries[orig_idx]['index']}: {e}")
+                exit(1)
+                # answer_positions.append(None)
 
-        try:
-            # Use the model interface to find the answer start position
-            answer_start = model_interface.find_answer_start(tokenizer, full_ids, answer_tokens)
-        except (ValueError, AttributeError) as e:
-            print(f"Could not find assistant answer start: {e}")
-            exit(1)
-
-        answer_end = answer_start + answer_len  # exclusive
+        # Run model forward pass
+        perplexities = [None] * len(batch_entries)
 
         try:
             with torch.no_grad():
-                # Run model forward pass
-                outputs = model(input_ids)
-                logits = outputs.logits  # shape: [1, seq_len, vocab_size]
+                outputs = model(input_ids, attention_mask=attention_mask)
+                logits = outputs.logits  # shape: [batch_size, seq_len, vocab_size]
 
-                # Shift logits and labels to align with next-token predictions
+                # Shift logits and labels
                 shift_logits = logits[:, :-1, :]
                 shift_labels = input_ids[:, 1:]
-
-                # Create mask: only keep positions inside the assistant answer span
-                # Note: answer_start/answer_end are in original input_ids coordinates,
-                # but shift_labels is offset by 1, so we need to adjust indices
-                mask = torch.zeros_like(shift_labels, dtype=torch.bool)
-                mask[0, answer_start-1:answer_end-1] = True
 
                 # Compute log probabilities
                 log_probs = torch.nn.functional.log_softmax(shift_logits, dim=-1)
                 selected_log_probs = log_probs.gather(2, shift_labels.unsqueeze(-1)).squeeze(-1)
 
-                # Filter only answer tokens
-                answer_log_probs = selected_log_probs[mask]
+                # Calculate perplexity for each valid entry
+                for batch_idx, orig_idx in enumerate(valid_indices):
+                    pos = answer_positions[batch_idx]
+                    if pos is None:
+                        continue
 
-                if len(answer_log_probs) > 0:
-                    avg_log_prob = answer_log_probs.mean().item()
-                    perplexity = math.exp(-avg_log_prob)
-                    return perplexity
-                else:
-                    return None
+                    answer_start, answer_end = pos
+
+                    # Create mask for answer tokens (adjusting for shift)
+                    mask = torch.zeros(shift_labels.shape[1], dtype=torch.bool, device=device)
+                    mask[answer_start-1:answer_end-1] = True
+
+                    # Get log probs for answer tokens
+                    answer_log_probs = selected_log_probs[batch_idx][mask]
+
+                    if len(answer_log_probs) > 0:
+                        avg_log_prob = answer_log_probs.mean().item()
+                        perplexity = math.exp(-avg_log_prob)
+                        perplexities[orig_idx] = perplexity
+
         except Exception as e:
-            print(f"Error calculating perplexity: {e}")
-            return None
+            print(f"Error in batch forward pass: {e}")
+            exit(1)
 
-    def generate_answer(question, language_name: str):
-        """
-        Generate an answer to the question using the model.
-        Uses chat template formatting with add_generation_prompt=True.
-        Returns the generated answer text.
-        """
-        try:
-            # Build formatted conversation text using model-specific interface
-            prompt_text = model_interface.build_messages_for_perplexity_generate(
-                tokenizer, question, language_name
-            )
-        except Exception as e:
-            print(f"Error building messages for generation: {e}")
-            return None
+        return perplexities
 
-        # Tokenize the prompt
-        tokenized = tokenizer(prompt_text, return_tensors="pt")
+    def generate_batch_answers(batch_entries):
+        """
+        Generate answers for a batch of entries.
+        Returns list of generated answer strings (or None for errors).
+        """
+        # Build prompts for all entries
+        prompts = []
+        for entry in batch_entries:
+            language_name = language_abbreviation_to_name(entry['lang'])
+            try:
+                prompt_text = model_interface.build_messages_for_perplexity_generate(
+                    tokenizer, entry['question'], language_name
+                )
+                prompts.append(prompt_text)
+            except Exception as e:
+                print(f"Error building generation prompt for entry {entry['index']}: {e}")
+                exit(1)
+                # prompts.append(None)
+
+        # Filter out None entries
+        valid_indices = [i for i, p in enumerate(prompts) if p is not None]
+        if not valid_indices:
+            return [None] * len(batch_entries)
+
+        valid_prompts = [prompts[i] for i in valid_indices]
+
+        # Set padding side to left for generation
+        tokenizer.padding_side = 'left'
+
+        # Tokenize batch
+        tokenized = tokenizer(
+            valid_prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=1024
+        )
         input_ids = tokenized.input_ids.to(device)
+        attention_mask = tokenized.attention_mask.to(device)
+
+        generated_answers = [None] * len(batch_entries)
 
         try:
             with torch.no_grad():
-                # Generate answer
                 output_ids = model.generate(
                     input_ids,
+                    attention_mask=attention_mask,
                     max_new_tokens=100,
                     do_sample=False,
                     pad_token_id=tokenizer.eos_token_id
                 )
 
-                # Decode only the generated tokens (excluding the prompt)
-                generated_ids = output_ids[0][input_ids.shape[1]:]
-                generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
+                # Decode each output
+                for batch_idx, orig_idx in enumerate(valid_indices):
+                    input_length = input_ids[batch_idx].shape[0]
+                    generated_ids = output_ids[batch_idx][input_length:]
+                    generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
+                    generated_answers[orig_idx] = generated_text.strip()
 
-                return generated_text.strip()
         except Exception as e:
-            print(f"Error generating answer: {e}")
-            return None
+            print(f"Error in batch generation: {e}")
+            exit(1)
+
+        return generated_answers
 
     # Open file in append mode
     with open(output_file, 'a', encoding='utf-8') as f:
-        for i, entry in enumerate(entries):
-            # Skip if already processed
-            if entry['index'] in processed_indices:
-                continue
+        # Process in batches
+        for batch_start in range(0, len(unprocessed_samples), batch_size):
+            batch_end = min(batch_start + batch_size, len(unprocessed_samples))
+            batch_entries = unprocessed_samples[batch_start:batch_end]
 
             try:
-                language_name = language_abbreviation_to_name(entry['lang'])
+                # Calculate perplexities for batch
+                perplexities = calculate_batch_perplexities(batch_entries)
 
-                # Calculate perplexity for this answer
-                perplexity = calculate_answer_perplexity(
-                    entry['question'],
-                    entry['answer'],
-                    language_name
-                )
+                # Generate answers for batch
+                generated_answers = generate_batch_answers(batch_entries)
 
-                # Generate answer for this language
-                generated_answer = generate_answer(
-                    entry['question'],
-                    language_name
-                )
+                # Write results
+                for i, entry in enumerate(batch_entries):
+                    result = {
+                        'index': entry['index'],
+                        'perplexity': perplexities[i],
+                        'question': entry['question'],
+                        'answer': entry['answer'],
+                        'generated_answer': generated_answers[i],
+                        'lang': entry['lang'],
+                        'is_correct': entry['is_correct'],
+                        'subject': entry.get('subject', ''),
+                        'model': model_name,
+                    }
 
-                # Write result immediately
-                result = {
-                    'index': entry['index'],
-                    'perplexity': perplexity,
-                    'question': entry['question'],
-                    'answer': entry['answer'],
-                    'generated_answer': generated_answer,
-                    'lang': entry['lang'],
-                    'is_correct': entry['is_correct'],
-                    'subject': entry.get('subject', ''),
-                    'model': model_name,
-                }
+                    f.write(json.dumps(result, ensure_ascii=False) + '\n')
+                    f.flush()
 
-                f.write(json.dumps(result, ensure_ascii=False) + '\n')
-                f.flush()
+                    results_dict[entry['index']] = {
+                        'perplexity': perplexities[i],
+                        'generated_answer': generated_answers[i]
+                    }
 
-                results_dict[entry['index']] = {
-                    'perplexity': perplexity,
-                    'generated_answer': generated_answer
-                }
-
-                if (len(results_dict)) % 5 == 0:
-                    print(f"  Processed {len(results_dict)}/{len(entries)} samples")
+                # Progress update
+                if len(results_dict) % 10 == 0 or batch_end == len(unprocessed_samples):
+                    print(f"  Processed {len(results_dict)}/{total_to_process} samples")
 
             except Exception as e:
-                print(f"Error on sample {entry['index']}: {e}")
-                # Write error result
-                result = {
-                    'index': entry['index'],
-                    'perplexity': None,
-                    'generated_answer': None,
-                    'error': str(e),
-                    'model': model_name
-                }
-                f.write(json.dumps(result, ensure_ascii=False) + '\n')
-                f.flush()
-                results_dict[entry['index']] = {
-                    'perplexity': None,
-                    'generated_answer': None
-                }
+                print(f"Error processing batch starting at index {batch_start}: {e}")
+                exit(1)
+                # print(f"Error processing batch: {e}")
+                # # Write error results for all samples in the failed batch
+                # for entry in batch_entries:
+                #     result = {
+                #         'index': entry['index'],
+                #         'perplexity': None,
+                #         'generated_answer': None,
+                #         'error': str(e),
+                #         'model': model_name,
+                #         'subject': entry.get('subject', ''),
+                #     }
+                #     f.write(json.dumps(result, ensure_ascii=False) + '\n')
+                #     f.flush()
+                #     results_dict[entry['index']] = {
+                #         'perplexity': None,
+                #         'generated_answer': None
+                #     }
 
-    # Build final lists in order
+            finally:
+                # Restore original padding side
+                tokenizer.padding_side = original_padding_side
+
     print("\nPerplexity calculation completed.")
