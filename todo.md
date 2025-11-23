@@ -34,3 +34,7 @@ Probabilistic mode: measure the probability difference between completely opposi
 zh correct, en wrong; zh wrong, en correct; ...
 
 fix the order.
+
+
+Probability difference (calibration)
+
