@@ -153,6 +153,7 @@ def collect_preference_local_thinking(
                             'answer2': pair['answer2'],
                             'lang1': pair['lang1'],
                             'lang2': pair['lang2'],
+                            'subject': pair.get('subject', ''),
                             'model': model_name
                         }
 

@@ -222,7 +222,7 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
                     'index': i,
                     'preference': preference,
                     'perplexity_lang1': perplexity_lang1,
-                    'perplexity_lang2': perplexity_lang2,                    
+                    'perplexity_lang2': perplexity_lang2,
                     'question': pair['question'],
                     'generated_answer_lang1': generated_answer_lang1,
                     'answer1': pair['answer1'],
@@ -230,6 +230,7 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
                     'answer2': pair['answer2'],
                     'lang1': pair['lang1'],
                     'lang2': pair['lang2'],
+                    'subject': pair.get('subject', ''),
                     'model': model_name,
                 }
 
