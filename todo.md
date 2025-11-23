@@ -38,3 +38,11 @@ fix the order.
 
 Probability difference (calibration)
 
+Needs to split subjects?
+
+Experiments: 2 (zh correct en incorrect, etc.) * 3 (perplexity, preference direct, preference thinking)
+
+Data collected: accuracy, correlation (pearson correlation), bias (binary, continuous)
+
+depends on subject
+
