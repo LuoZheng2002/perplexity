@@ -23,15 +23,21 @@ def language_abbreviation_to_name(abbreviation):
     assert abbreviation in lang_map or len(abbreviation) > 2, f"Unknown language abbreviation: {abbreviation}"
     return lang_map.get(abbreviation, abbreviation)
 
-def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interface, output_file="perplexities_local.jsonl", device="cuda"):
+def collect_perplexity_local(entries, model, tokenizer, model_name, model_interface, output_file="perplexities_local.jsonl", device="cuda"):
     """
-    Calculate the perplexity of each answer in the pairs using a local LLM.
+    Calculate the perplexity of each answer entry using a local LLM.
 
     Perplexity is calculated by getting the average log probability of tokens in the answer
     given the question context. Lower perplexity indicates the model finds the answer more likely.
 
     Args:
-        pairs: List of question-answer pairs
+        entries: List of individual answer entries, each containing:
+            - 'index': int
+            - 'question': str
+            - 'answer': str
+            - 'lang': str
+            - 'is_correct': bool
+            - 'subject': str
         model: Pre-loaded model instance
         tokenizer: Pre-loaded tokenizer instance
         model_name: Hugging Face model name (for logging/identification)
@@ -40,7 +46,7 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
         device: Device to use ("cuda" or "cpu")
 
     Returns:
-        Tuple of (perplexities_lang1, perplexities_lang2)
+        None (results are written to output_file)
     """
     import torch
 
@@ -57,13 +63,11 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
                     idx = result['index']
                     processed_indices.add(idx)
                     results_dict[idx] = {
-                        'perplexity_lang1': result.get('perplexity_lang1'),
-                        'perplexity_lang2': result.get('perplexity_lang2'),
-                        'generated_answer_lang1': result.get('generated_answer_lang1'),
-                        'generated_answer_lang2': result.get('generated_answer_lang2')
+                        'perplexity': result.get('perplexity'),
+                        'generated_answer': result.get('generated_answer')
                     }
         print(f"Found {len(processed_indices)} already processed samples")
-    if len(processed_indices) == len(pairs):
+    if len(processed_indices) == len(entries):
         print("All samples already processed. Exiting.")
         return
 
@@ -180,92 +184,66 @@ def collect_perplexity_local(pairs, model, tokenizer, model_name, model_interfac
 
     # Open file in append mode
     with open(output_file, 'a', encoding='utf-8') as f:
-        for i, pair in enumerate(pairs):
+        for i, entry in enumerate(entries):
             # Skip if already processed
-            if i in processed_indices:
+            if entry['index'] in processed_indices:
                 continue
 
             try:
-                language_name1 = language_abbreviation_to_name(pair['lang1'])
-                language_name2 = language_abbreviation_to_name(pair['lang2'])
-                # Calculate perplexity for lang1 answer
-                perplexity_lang1 = calculate_answer_perplexity(
-                    pair['question'],
-                    pair['answer1'],
-                    language_name1
+                language_name = language_abbreviation_to_name(entry['lang'])
+
+                # Calculate perplexity for this answer
+                perplexity = calculate_answer_perplexity(
+                    entry['question'],
+                    entry['answer'],
+                    language_name
                 )
 
-                # Calculate perplexity for lang2 answer
-                perplexity_lang2 = calculate_answer_perplexity(
-                    pair['question'],
-                    pair['answer2'],
-                    language_name2
+                # Generate answer for this language
+                generated_answer = generate_answer(
+                    entry['question'],
+                    language_name
                 )
-
-                
-
-                # Generate answers for both languages
-                generated_answer_lang1 = generate_answer(
-                    pair['question'],
-                    language_name1
-                )
-
-                generated_answer_lang2 = generate_answer(
-                    pair['question'],
-                    language_name2
-                )
-
-                preference = 1 if perplexity_lang1 < perplexity_lang2 else 2
 
                 # Write result immediately
                 result = {
-                    'index': i,
-                    'preference': preference,
-                    'perplexity_lang1': perplexity_lang1,
-                    'perplexity_lang2': perplexity_lang2,
-                    'question': pair['question'],
-                    'generated_answer_lang1': generated_answer_lang1,
-                    'answer1': pair['answer1'],
-                    'generated_answer_lang2': generated_answer_lang2,
-                    'answer2': pair['answer2'],
-                    'lang1': pair['lang1'],
-                    'lang2': pair['lang2'],
-                    'subject': pair.get('subject', ''),
+                    'index': entry['index'],
+                    'perplexity': perplexity,
+                    'question': entry['question'],
+                    'answer': entry['answer'],
+                    'generated_answer': generated_answer,
+                    'lang': entry['lang'],
+                    'is_correct': entry['is_correct'],
+                    'subject': entry.get('subject', ''),
                     'model': model_name,
                 }
 
                 f.write(json.dumps(result, ensure_ascii=False) + '\n')
                 f.flush()
 
-                results_dict[i] = {
-                    'perplexity_lang1': perplexity_lang1,
-                    'perplexity_lang2': perplexity_lang2,
-                    'generated_answer_lang1': generated_answer_lang1,
-                    'generated_answer_lang2': generated_answer_lang2
+                results_dict[entry['index']] = {
+                    'perplexity': perplexity,
+                    'generated_answer': generated_answer
                 }
 
                 if (len(results_dict)) % 5 == 0:
-                    print(f"  Processed {len(results_dict)}/{len(pairs)} samples")
+                    print(f"  Processed {len(results_dict)}/{len(entries)} samples")
 
             except Exception as e:
-                print(f"Error on sample {i}: {e}")
+                print(f"Error on sample {entry['index']}: {e}")
                 # Write error result
                 result = {
-                    'index': i,
-                    'perplexity_lang1': None,
-                    'perplexity_lang2': None,
-                    'generated_answer_lang1': None,
-                    'generated_answer_lang2': None,
+                    'index': entry['index'],
+                    'perplexity': None,
+                    'generated_answer': None,
                     'error': str(e),
                     'model': model_name
                 }
                 f.write(json.dumps(result, ensure_ascii=False) + '\n')
                 f.flush()
-                results_dict[i] = {
-                    'perplexity_lang1': None,
-                    'perplexity_lang2': None,
-                    'generated_answer_lang1': None,
-                    'generated_answer_lang2': None
+                results_dict[entry['index']] = {
+                    'perplexity': None,
+                    'generated_answer': None
                 }
 
     # Build final lists in order

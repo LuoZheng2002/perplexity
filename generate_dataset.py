@@ -1,47 +1,40 @@
 
 
-def generate_answer_pair_datasets(lang1, lang2):
+def generate_answer_datasets(lang1, lang2):
     '''
-    Load datasets from two languages and create bilingual answer pairs.
+    Load datasets from two languages and create individual answer entries.
     If lang1 and lang2 are both not English, load the English dataset as well for questions.
     Question is always in English, while answers are extracted from lang1 and lang2 datasets.
 
     All input datasets have contents to be the same except for their languages.
 
-    The input datasets are in the form of multiple choise questions with 4 options (A, B, C, D), where only 1 is correct.
-
-    For each output dataset, we select answers based on correctness settings.
+    The input datasets are in the form of multiple choice questions with 4 options (A, B, C, D), where only 1 is correct.
 
     The correct answer index can be retrieved from the input datasets. Then the incorrect answer is the one with index to be (correct_index + 1) % 4.
     For example, if the correct answer is B (index 1), then the incorrect answer is C (index 2).
 
-    Answer 1 is always in a language whose abbreviation has a smaller lexicographical order. For example, for ("zh_cn", "en"), answer 1 is always in "en", and answer 2 is always in "zh_cn".
-
-    For each call of this function, we generate four datasets:
-        1. lang1 correct, lang2 incorrect
-        2. lang1 incorrect, lang2 correct
-        3. both correct
-        4. both incorrect
+    For each call of this function, we generate four datasets (individual entries, not pairs):
+        1. lang1 correct answers
+        2. lang1 incorrect answers
+        3. lang2 correct answers
+        4. lang2 incorrect answers
 
     The output datasets are saved to files named:
-        pair_{lang1}_correct_{lang2}_incorrect.jsonl
-        pair_{lang1}_incorrect_{lang2}_correct.jsonl
-        pair_{lang1}_correct_{lang2}_correct.jsonl
-        pair_{lang1}_incorrect_{lang2}_incorrect.jsonl
+        {lang}_correct.jsonl
+        {lang}_incorrect.jsonl
+
     Args:
         lang1: First language code (e.g., "zh_cn")
         lang2: Second language code (e.g., "en")
 
     Content to be written to the corresponding dataset files:
-        List of pairs with structure:
+        List of entries with structure:
         {
             'index': int,
             'question': str (English question),
-            'answer1': str (answer in lang1),
-            'answer2': str (answer in lang2),
-            'lang1': str (language code),
-            'lang2': str (language code),
-            'correct_answer': int, # 0 if both incorrect, 1 if lang1 correct, 2 if lang2 correct, 3 if both correct
+            'answer': str,
+            'lang': str (language code),
+            'is_correct': bool,
             'subject': str,
         }
     '''
@@ -50,7 +43,7 @@ def generate_answer_pair_datasets(lang1, lang2):
     from parse_dataset import parse_dataset
 
     print(f"\n{'='*60}")
-    print(f"Generating answer pair datasets for {lang1} and {lang2}")
+    print(f"Generating answer datasets for {lang1} and {lang2}")
     print(f"{'='*60}\n")
 
     # Load datasets
@@ -71,11 +64,11 @@ def generate_answer_pair_datasets(lang1, lang2):
     print(f"Dataset sizes: {lang1}={len(data_lang1)}, {lang2}={len(data_lang2)}, en={len(data_en)}")
     print(f"Will process {min_length} samples\n")
 
-    # Create four datasets
-    dataset1 = []  # lang1 correct, lang2 incorrect
-    dataset2 = []  # lang1 incorrect, lang2 correct
-    dataset3 = []  # both correct
-    dataset4 = []  # both incorrect
+    # Create four datasets (individual entries)
+    dataset_lang1_correct = []
+    dataset_lang1_incorrect = []
+    dataset_lang2_correct = []
+    dataset_lang2_incorrect = []
 
     misaligned_count = 0
 
@@ -107,57 +100,49 @@ def generate_answer_pair_datasets(lang1, lang2):
         correct_answer2 = sample_lang2['answer']
         incorrect_answer2 = sample_lang2['choices'][incorrect_letter]
 
-        # Create entry for dataset1 (lang1 correct, lang2 incorrect)
-        entry1 = {
+        # Create entry for lang1 correct
+        entry_lang1_correct = {
             'index': sample_en['original_index'],
             'question': sample_en['question'],
-            'answer1': correct_answer1,
-            'answer2': incorrect_answer2,
-            'lang1': lang1,
-            'lang2': lang2,
-            'correct_answer': 1,
+            'answer': correct_answer1,
+            'lang': lang1,
+            'is_correct': True,
             'subject': sample_en['subject']
         }
-        dataset1.append(entry1)
+        dataset_lang1_correct.append(entry_lang1_correct)
 
-        # Create entry for dataset2 (lang1 incorrect, lang2 correct)
-        entry2 = {
+        # Create entry for lang1 incorrect
+        entry_lang1_incorrect = {
             'index': sample_en['original_index'],
             'question': sample_en['question'],
-            'answer1': incorrect_answer1,
-            'answer2': correct_answer2,
-            'lang1': lang1,
-            'lang2': lang2,
-            'correct_answer': 2,
+            'answer': incorrect_answer1,
+            'lang': lang1,
+            'is_correct': False,
             'subject': sample_en['subject']
         }
-        dataset2.append(entry2)
+        dataset_lang1_incorrect.append(entry_lang1_incorrect)
 
-        # Create entry for dataset3 (both correct)
-        entry3 = {
+        # Create entry for lang2 correct
+        entry_lang2_correct = {
             'index': sample_en['original_index'],
             'question': sample_en['question'],
-            'answer1': correct_answer1,
-            'answer2': correct_answer2,
-            'lang1': lang1,
-            'lang2': lang2,
-            'correct_answer': 3,  # both correct
+            'answer': correct_answer2,
+            'lang': lang2,
+            'is_correct': True,
             'subject': sample_en['subject']
         }
-        dataset3.append(entry3)
+        dataset_lang2_correct.append(entry_lang2_correct)
 
-        # Create entry for dataset4 (both incorrect)
-        entry4 = {
+        # Create entry for lang2 incorrect
+        entry_lang2_incorrect = {
             'index': sample_en['original_index'],
             'question': sample_en['question'],
-            'answer1': incorrect_answer1,
-            'answer2': incorrect_answer2,
-            'lang1': lang1,
-            'lang2': lang2,
-            'correct_answer': 0,  # both incorrect
+            'answer': incorrect_answer2,
+            'lang': lang2,
+            'is_correct': False,
             'subject': sample_en['subject']
         }
-        dataset4.append(entry4)
+        dataset_lang2_incorrect.append(entry_lang2_incorrect)
 
     if misaligned_count > 0:
         print(f"Warning: Skipped {misaligned_count} misaligned samples\n")
@@ -166,39 +151,39 @@ def generate_answer_pair_datasets(lang1, lang2):
     os.makedirs("datasets", exist_ok=True)
 
     # Save datasets to JSONL files
-    file1 = f"datasets/pair_{lang1}_correct_{lang2}_incorrect.jsonl"
-    file2 = f"datasets/pair_{lang1}_incorrect_{lang2}_correct.jsonl"
-    file3 = f"datasets/pair_{lang1}_correct_{lang2}_correct.jsonl"
-    file4 = f"datasets/pair_{lang1}_incorrect_{lang2}_incorrect.jsonl"
+    file_lang1_correct = f"datasets/{lang1}_correct.jsonl"
+    file_lang1_incorrect = f"datasets/{lang1}_incorrect.jsonl"
+    file_lang2_correct = f"datasets/{lang2}_correct.jsonl"
+    file_lang2_incorrect = f"datasets/{lang2}_incorrect.jsonl"
 
     print(f"Saving datasets...")
-    with open(file1, 'w', encoding='utf-8') as f:
-        for entry in dataset1:
+    with open(file_lang1_correct, 'w', encoding='utf-8') as f:
+        for entry in dataset_lang1_correct:
             f.write(json.dumps(entry, ensure_ascii=False) + '\n')
-    print(f"  Saved {len(dataset1)} entries to {file1}")
+    print(f"  Saved {len(dataset_lang1_correct)} entries to {file_lang1_correct}")
 
-    with open(file2, 'w', encoding='utf-8') as f:
-        for entry in dataset2:
+    with open(file_lang1_incorrect, 'w', encoding='utf-8') as f:
+        for entry in dataset_lang1_incorrect:
             f.write(json.dumps(entry, ensure_ascii=False) + '\n')
-    print(f"  Saved {len(dataset2)} entries to {file2}")
+    print(f"  Saved {len(dataset_lang1_incorrect)} entries to {file_lang1_incorrect}")
 
-    with open(file3, 'w', encoding='utf-8') as f:
-        for entry in dataset3:
+    with open(file_lang2_correct, 'w', encoding='utf-8') as f:
+        for entry in dataset_lang2_correct:
             f.write(json.dumps(entry, ensure_ascii=False) + '\n')
-    print(f"  Saved {len(dataset3)} entries to {file3}")
+    print(f"  Saved {len(dataset_lang2_correct)} entries to {file_lang2_correct}")
 
-    with open(file4, 'w', encoding='utf-8') as f:
-        for entry in dataset4:
+    with open(file_lang2_incorrect, 'w', encoding='utf-8') as f:
+        for entry in dataset_lang2_incorrect:
             f.write(json.dumps(entry, ensure_ascii=False) + '\n')
-    print(f"  Saved {len(dataset4)} entries to {file4}")
+    print(f"  Saved {len(dataset_lang2_incorrect)} entries to {file_lang2_incorrect}")
 
     print(f"\n{'='*60}")
-    print(f"Successfully generated {len(dataset1)} answer pairs for each of 4 datasets")
+    print(f"Successfully generated {len(dataset_lang1_correct)} entries for each of 4 datasets")
     print(f"{'='*60}\n")
 
-    return dataset1, dataset2, dataset3, dataset4
+    return dataset_lang1_correct, dataset_lang1_incorrect, dataset_lang2_correct, dataset_lang2_incorrect
 
 
 if __name__ == "__main__":
     # Example usage
-    generate_answer_pair_datasets("zh_cn", "en")
+    generate_answer_datasets("zh_cn", "en")

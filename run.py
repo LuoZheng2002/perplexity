@@ -6,7 +6,7 @@ import os
 from collect_perplexity_local import collect_perplexity_local
 from collect_preference_local_direct import collect_preference_local_direct
 from collect_preference_local_thinking import collect_preference_local_thinking
-from generate_dataset import generate_answer_pair_datasets
+from generate_dataset import generate_answer_datasets
 os.environ["HF_HOME"] = "/work/nvme/bfdz/zluo8/huggingface"
 import sys
 from datasets import load_dataset
@@ -93,6 +93,66 @@ def find_assistant_answer_start(full_ids, prefix_ids):
     raise ValueError("Assistant prefix not found in full_ids.")
 
 
+def load_entries(file_path):
+    """Load entries from a JSONL file."""
+    entries = []
+    with open(file_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            if line.strip():
+                entries.append(json.loads(line))
+    return entries
+
+
+def combine_entries_to_pairs(entries1, entries2, lang1, lang2):
+    """
+    Combine two lists of entries into pairs by matching indices.
+
+    Args:
+        entries1: List of entries for answer1 (lang1)
+        entries2: List of entries for answer2 (lang2)
+        lang1: Language code for answer1
+        lang2: Language code for answer2
+
+    Returns:
+        List of pairs with structure:
+        {
+            'index': int,
+            'question': str,
+            'answer1': str,
+            'answer2': str,
+            'lang1': str,
+            'lang2': str,
+            'is_correct1': bool,
+            'is_correct2': bool,
+            'subject': str,
+        }
+    """
+    # Index entries by their index field
+    entries1_by_index = {e['index']: e for e in entries1}
+    entries2_by_index = {e['index']: e for e in entries2}
+
+    # Find common indices
+    common_indices = set(entries1_by_index.keys()) & set(entries2_by_index.keys())
+
+    pairs = []
+    for idx in sorted(common_indices):
+        e1 = entries1_by_index[idx]
+        e2 = entries2_by_index[idx]
+
+        pair = {
+            'index': idx,
+            'question': e1['question'],
+            'answer1': e1['answer'],
+            'answer2': e2['answer'],
+            'lang1': lang1,
+            'lang2': lang2,
+            'is_correct1': e1['is_correct'],
+            'is_correct2': e2['is_correct'],
+            'subject': e1.get('subject', ''),
+        }
+        pairs.append(pair)
+
+    return pairs
 
 
 def compare_results(preferences, perplexities_lang1, perplexities_lang2, lang1, lang2):
@@ -200,41 +260,40 @@ if __name__ == "__main__":
         first_lang = sorted_langs[0]
         second_lang = sorted_langs[1]
 
-        # Load datasets from files
-        dataset_file1 = f"datasets/pair_{first_lang}_correct_{second_lang}_incorrect.jsonl"
-        dataset_file2 = f"datasets/pair_{first_lang}_incorrect_{second_lang}_correct.jsonl"
-        dataset_file3 = f"datasets/pair_{first_lang}_correct_{second_lang}_correct.jsonl"
-        dataset_file4 = f"datasets/pair_{first_lang}_incorrect_{second_lang}_incorrect.jsonl"
+        # Load individual entry datasets
+        entries_lang1_correct = load_entries(f"datasets/{first_lang}_correct.jsonl")
+        entries_lang1_incorrect = load_entries(f"datasets/{first_lang}_incorrect.jsonl")
+        entries_lang2_correct = load_entries(f"datasets/{second_lang}_correct.jsonl")
+        entries_lang2_incorrect = load_entries(f"datasets/{second_lang}_incorrect.jsonl")
 
-        dataset1 = []
-        dataset2 = []
-        dataset3 = []
-        dataset4 = []
+        print(f"Loaded {len(entries_lang1_correct)} entries from datasets/{first_lang}_correct.jsonl")
+        print(f"Loaded {len(entries_lang1_incorrect)} entries from datasets/{first_lang}_incorrect.jsonl")
+        print(f"Loaded {len(entries_lang2_correct)} entries from datasets/{second_lang}_correct.jsonl")
+        print(f"Loaded {len(entries_lang2_incorrect)} entries from datasets/{second_lang}_incorrect.jsonl")
 
-        with open(dataset_file1, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.strip():
-                    dataset1.append(json.loads(line))
+        # Combine entries into pairs for preference methods
+        # 4 pair combinations:
+        # 1. lang1 correct, lang2 incorrect
+        # 2. lang1 incorrect, lang2 correct
+        # 3. both correct
+        # 4. both incorrect
+        pairs_lang1_correct_lang2_incorrect = combine_entries_to_pairs(
+            entries_lang1_correct, entries_lang2_incorrect, first_lang, second_lang
+        )
+        pairs_lang1_incorrect_lang2_correct = combine_entries_to_pairs(
+            entries_lang1_incorrect, entries_lang2_correct, first_lang, second_lang
+        )
+        pairs_both_correct = combine_entries_to_pairs(
+            entries_lang1_correct, entries_lang2_correct, first_lang, second_lang
+        )
+        pairs_both_incorrect = combine_entries_to_pairs(
+            entries_lang1_incorrect, entries_lang2_incorrect, first_lang, second_lang
+        )
 
-        with open(dataset_file2, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.strip():
-                    dataset2.append(json.loads(line))
-
-        with open(dataset_file3, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.strip():
-                    dataset3.append(json.loads(line))
-
-        with open(dataset_file4, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.strip():
-                    dataset4.append(json.loads(line))
-
-        print(f"Loaded {len(dataset1)} samples from {dataset_file1}")
-        print(f"Loaded {len(dataset2)} samples from {dataset_file2}")
-        print(f"Loaded {len(dataset3)} samples from {dataset_file3}")
-        print(f"Loaded {len(dataset4)} samples from {dataset_file4}")
+        print(f"Created {len(pairs_lang1_correct_lang2_incorrect)} pairs for {first_lang}_correct_{second_lang}_incorrect")
+        print(f"Created {len(pairs_lang1_incorrect_lang2_correct)} pairs for {first_lang}_incorrect_{second_lang}_correct")
+        print(f"Created {len(pairs_both_correct)} pairs for {first_lang}_correct_{second_lang}_correct")
+        print(f"Created {len(pairs_both_incorrect)} pairs for {first_lang}_incorrect_{second_lang}_incorrect")
 
         # Get or create model and tokenizer with caching
         model_name = config.model.value
@@ -267,19 +326,19 @@ if __name__ == "__main__":
         model_interface = create_model_interface(model_name)
         print(f"Using model interface: {model_interface.__class__.__name__}")
 
-        # Process all four datasets
-        for dataset, dataset_suffix in [
-            (dataset1, f"{first_lang}_correct_{second_lang}_incorrect"),
-            (dataset2, f"{first_lang}_incorrect_{second_lang}_correct"),
-            (dataset3, f"{first_lang}_correct_{second_lang}_correct"),
-            (dataset4, f"{first_lang}_incorrect_{second_lang}_incorrect")
-        ]:
-            match config.result_type:
-                case ResultType.PREFERENCE_DIRECT:
+        match config.result_type:
+            case ResultType.PREFERENCE_DIRECT:
+                # Process pairs for preference_direct
+                for pairs, dataset_suffix in [
+                    (pairs_lang1_correct_lang2_incorrect, f"{first_lang}_correct_{second_lang}_incorrect"),
+                    (pairs_lang1_incorrect_lang2_correct, f"{first_lang}_incorrect_{second_lang}_correct"),
+                    (pairs_both_correct, f"{first_lang}_correct_{second_lang}_correct"),
+                    (pairs_both_incorrect, f"{first_lang}_incorrect_{second_lang}_incorrect")
+                ]:
                     output_dir = f"result/{display_model_name}/preferences_local_direct"
                     os.makedirs(output_dir, exist_ok=True)
                     collect_preference_local_direct(
-                        pairs=dataset,
+                        pairs=pairs,
                         model=model,
                         tokenizer=tokenizer,
                         model_name=model_name,
@@ -287,30 +346,46 @@ if __name__ == "__main__":
                         output_file=f"{output_dir}/{dataset_suffix}.jsonl",
                         device="cuda"
                     )
-                case ResultType.PREFERENCE_THINKING:
-                    output_dir = f"result/{display_model_name}/preferences_local_thinking"
-                    os.makedirs(output_dir, exist_ok=True)
-                    collect_preference_local_thinking(
-                        pairs=dataset,
-                        model=model,
-                        tokenizer=tokenizer,
-                        model_name=model_name,
-                        model_interface=model_interface,
-                        output_file=f"{output_dir}/{dataset_suffix}.jsonl",
-                        device="cuda",
-                        batch_size=12
-                    )
-                case ResultType.PERPLEXITY:
+
+            # case ResultType.PREFERENCE_THINKING:
+            #     # Process pairs for preference_thinking
+            #     for pairs, dataset_suffix in [
+            #         (pairs_lang1_correct_lang2_incorrect, f"{first_lang}_correct_{second_lang}_incorrect"),
+            #         (pairs_lang1_incorrect_lang2_correct, f"{first_lang}_incorrect_{second_lang}_correct"),
+            #         (pairs_both_correct, f"{first_lang}_correct_{second_lang}_correct"),
+            #         (pairs_both_incorrect, f"{first_lang}_incorrect_{second_lang}_incorrect")
+            #     ]:
+            #         output_dir = f"result/{display_model_name}/preferences_local_thinking"
+            #         os.makedirs(output_dir, exist_ok=True)
+            #         collect_preference_local_thinking(
+            #             pairs=pairs,
+            #             model=model,
+            #             tokenizer=tokenizer,
+            #             model_name=model_name,
+            #             model_interface=model_interface,
+            #             output_file=f"{output_dir}/{dataset_suffix}.jsonl",
+            #             device="cuda",
+            #             batch_size=12
+            #         )
+
+            case ResultType.PERPLEXITY:
+                # Process individual entries for perplexity
+                for entries, entry_suffix in [
+                    (entries_lang1_correct, f"{first_lang}_correct"),
+                    (entries_lang1_incorrect, f"{first_lang}_incorrect"),
+                    (entries_lang2_correct, f"{second_lang}_correct"),
+                    (entries_lang2_incorrect, f"{second_lang}_incorrect")
+                ]:
                     output_dir = f"result/{display_model_name}/perplexities_local"
                     os.makedirs(output_dir, exist_ok=True)
                     collect_perplexity_local(
-                        pairs=dataset,
+                        entries=entries,
                         model=model,
                         tokenizer=tokenizer,
                         model_name=model_name,
                         model_interface=model_interface,
-                        output_file=f"{output_dir}/{dataset_suffix}.jsonl",
+                        output_file=f"{output_dir}/{entry_suffix}.jsonl",
                         device="cuda"
                     )
-        print("Collected results for configuration: ", config)
 
+        print("Collected results for configuration: ", config)

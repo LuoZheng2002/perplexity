@@ -12,7 +12,7 @@ class Model(Enum):
 
 class ResultType(Enum):
     PREFERENCE_DIRECT = auto()
-    PREFERENCE_THINKING = auto()
+    # PREFERENCE_THINKING = auto()
     PERPLEXITY = auto()
 
 @dataclass(frozen=True)
@@ -26,5 +26,5 @@ class Config:
 configs = [
     Config(Model.QWEN_2_5_32B_INSTRUCT, "zh_cn", "en", ResultType.PREFERENCE_DIRECT),
     Config(Model.QWEN_2_5_32B_INSTRUCT, "zh_cn", "en", ResultType.PERPLEXITY),
-    Config(Model.QWEN_2_5_32B_INSTRUCT, "zh_cn", "en", ResultType.PREFERENCE_THINKING),    
+    # Config(Model.QWEN_2_5_32B_INSTRUCT, "zh_cn", "en", ResultType.PREFERENCE_THINKING),    
 ]
