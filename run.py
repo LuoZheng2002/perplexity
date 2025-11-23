@@ -5,7 +5,7 @@ import os
 
 from collect_perplexity_local import collect_perplexity_local
 from collect_preference_local_direct import collect_preference_local_direct
-from collect_preference_local_thinking import collect_preference_local_thinking
+from collect_preference_local_cot import collect_preference_local_cot
 from generate_dataset import generate_answer_datasets
 os.environ["HF_HOME"] = "/work/nvme/bfdz/zluo8/huggingface"
 import sys
@@ -27,7 +27,7 @@ if sys.platform == 'win32':
 # Load environment variables
 load_dotenv()
 
-def initialize_model(model_name="Qwen/Qwen2.5-7B-Instruct", device="cuda"):
+def initialize_model(model_name, device="cuda"):
     """
     Initialize model and tokenizer with the same configuration as test_chat_template.py.
 
@@ -300,14 +300,16 @@ if __name__ == "__main__":
         match config.model:
             case Model.GRANITE_3_1_8B_INSTRUCT:
                 display_model_name = "granite_3_1_8b"
-            case Model.QWEN_2_5_7B_INSTRUCT:
-                display_model_name = "qwen_2_5_7b"
-            case Model.QWEN_2_5_14B_INSTRUCT:
-                display_model_name = "qwen_2_5_14b"
-            case Model.QWEN_2_5_32B_INSTRUCT:
-                display_model_name = "qwen_2_5_32b"
-            case Model.QWEN_2_5_72B_INSTRUCT:
-                display_model_name = "qwen_2_5_72b"
+            # case Model.QWEN_2_5_7B_INSTRUCT:
+            #     display_model_name = "qwen_2_5_7b"
+            # case Model.QWEN_2_5_14B_INSTRUCT:
+            #     display_model_name = "qwen_2_5_14b"
+            # case Model.QWEN_2_5_32B_INSTRUCT:
+            #     display_model_name = "qwen_2_5_32b"
+            # case Model.QWEN_2_5_72B_INSTRUCT:
+            #     display_model_name = "qwen_2_5_72b"
+            case Model.QWEN_3_30B_A3B:
+                display_model_name = "qwen_3_30b_a3b"
 
         if _global_model_name == model_name:
             # Reuse cached model and tokenizer
@@ -347,26 +349,26 @@ if __name__ == "__main__":
                         device="cuda"
                     )
 
-            # case ResultType.PREFERENCE_THINKING:
-            #     # Process pairs for preference_thinking
-            #     for pairs, dataset_suffix in [
-            #         (pairs_lang1_correct_lang2_incorrect, f"{first_lang}_correct_{second_lang}_incorrect"),
-            #         (pairs_lang1_incorrect_lang2_correct, f"{first_lang}_incorrect_{second_lang}_correct"),
-            #         (pairs_both_correct, f"{first_lang}_correct_{second_lang}_correct"),
-            #         (pairs_both_incorrect, f"{first_lang}_incorrect_{second_lang}_incorrect")
-            #     ]:
-            #         output_dir = f"result/{display_model_name}/preferences_local_thinking"
-            #         os.makedirs(output_dir, exist_ok=True)
-            #         collect_preference_local_thinking(
-            #             pairs=pairs,
-            #             model=model,
-            #             tokenizer=tokenizer,
-            #             model_name=model_name,
-            #             model_interface=model_interface,
-            #             output_file=f"{output_dir}/{dataset_suffix}.jsonl",
-            #             device="cuda",
-            #             batch_size=12
-            #         )
+            case ResultType.PREFERENCE_COT:
+                # Process pairs for preference_cot
+                for pairs, dataset_suffix in [
+                    (pairs_lang1_correct_lang2_incorrect, f"{first_lang}_correct_{second_lang}_incorrect"),
+                    (pairs_lang1_incorrect_lang2_correct, f"{first_lang}_incorrect_{second_lang}_correct"),
+                    (pairs_both_correct, f"{first_lang}_correct_{second_lang}_correct"),
+                    (pairs_both_incorrect, f"{first_lang}_incorrect_{second_lang}_incorrect")
+                ]:
+                    output_dir = f"result/{display_model_name}/preferences_local_cot"
+                    os.makedirs(output_dir, exist_ok=True)
+                    collect_preference_local_cot(
+                        pairs=pairs,
+                        model=model,
+                        tokenizer=tokenizer,
+                        model_name=model_name,
+                        model_interface=model_interface,
+                        output_file=f"{output_dir}/{dataset_suffix}.jsonl",
+                        device="cuda",
+                        batch_size=1
+                    )
 
             case ResultType.PERPLEXITY:
                 # Process individual entries for perplexity
@@ -387,5 +389,8 @@ if __name__ == "__main__":
                         output_file=f"{output_dir}/{entry_suffix}.jsonl",
                         device="cuda"
                     )
+            case _:
+                print(f"Unknown result type: {config.result_type}")
+                raise ValueError(f"Unknown result type: {config.result_type}")
 
         print("Collected results for configuration: ", config)

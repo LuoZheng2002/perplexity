@@ -18,13 +18,13 @@ Usage:
 """
 
 from .base import ModelInterface
-from .qwen import QwenModelInterface
+from .qwen3 import Qwen3ModelInterface
 from .granite import GraniteModelInterface
 from .factory import create_model_interface
 
 __all__ = [
     'ModelInterface',
-    'QwenModelInterface',
+    'Qwen3ModelInterface',
     'GraniteModelInterface',
     'create_model_interface',
 ]

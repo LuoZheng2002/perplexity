@@ -66,13 +66,13 @@ def find_model_dirs(result_dir):
 def find_result_files(model_dir):
     """
     Find all result files for a model.
-    Returns a dict with keys: perplexities_local, preferences_local_direct, preferences_local_thinking
+    Returns a dict with keys: perplexities_local, preferences_local_direct, preferences_local_cot
     Each value is a dict mapping lang_pair to file path.
     """
     result_files = {
         'perplexities_local': {},
         'preferences_local_direct': {},
-        'preferences_local_thinking': {}
+        'preferences_local_cot': {}
     }
 
     for result_type in result_files.keys():
@@ -192,12 +192,12 @@ def collect_metric(subject_filter_name: str, subject_filter: Callable[[str], boo
                     print(f"  Error calculating bias_binary for {lang_pair}: {e}")
 
         # Calculate bias_continuous between two preference files (need log_prob fields)
-        preference_thinking_files = result_files['preferences_local_thinking']
+        preference_cot_files = result_files['preferences_local_cot']
 
         for lang_pair in preference_direct_files.keys():
-            if lang_pair in preference_thinking_files:
+            if lang_pair in preference_cot_files:
                 file1 = preference_direct_files[lang_pair]
-                file2 = preference_thinking_files[lang_pair]
+                file2 = preference_cot_files[lang_pair]
 
                 # Load and filter data
                 data1 = load_jsonl(file1, subject_filter)

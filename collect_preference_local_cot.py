@@ -5,13 +5,13 @@ import re
 from config import ResultType
 
 
-def collect_preference_local_thinking(
+def collect_preference_local_cot(
         pairs,
         model,
         tokenizer,
         model_name,
         model_interface,
-        output_file="preferences_local_thinking.jsonl",
+        output_file="preferences_local_cot.jsonl",
         device="cuda",
         batch_size=1):
     """
@@ -85,7 +85,7 @@ def collect_preference_local_thinking(
                 # Build formatted prompts for all samples in batch
                 formatted_prompts = []
                 for pair in batch_pairs:
-                    formatted_prompt = model_interface.build_messages_for_compare_thinking(
+                    formatted_prompt = model_interface.build_messages_for_compare_cot(
                         tokenizer,
                         pair['question'],
                         pair['answer1'],

@@ -3,7 +3,7 @@ Factory function to create the appropriate model interface based on model name.
 """
 
 from .base import ModelInterface
-from .qwen import QwenModelInterface
+from .qwen3 import Qwen3ModelInterface
 from .granite import GraniteModelInterface
 
 
@@ -27,7 +27,7 @@ def create_model_interface(model_name: str) -> ModelInterface:
 
     Examples:
         >>> interface = create_model_interface("Qwen/Qwen2.5-7B-Instruct")
-        >>> isinstance(interface, QwenModelInterface)
+        >>> isinstance(interface, Qwen3ModelInterface)
         True
 
         >>> interface = create_model_interface("ibm-granite/granite-3.1-8b-instruct")
@@ -38,7 +38,7 @@ def create_model_interface(model_name: str) -> ModelInterface:
 
     # Check for Qwen models
     if "qwen" in model_name_lower:
-        return QwenModelInterface()
+        return Qwen3ModelInterface()
 
     # Check for Granite models
     if "granite" in model_name_lower:

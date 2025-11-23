@@ -140,7 +140,7 @@ Provide your judgment IMMEDIATELY without reasoning or explanation. Provide your
 
         return formatted + "\\box{"
 
-    def build_messages_for_compare_thinking(self, tokenizer: Any, question: str,
+    def build_messages_for_compare_cot(self, tokenizer: Any, question: str,
                                            answer1: str, answer2: str) -> str:
         """
         Build the message structure for comparison with reasoning and apply chat template.

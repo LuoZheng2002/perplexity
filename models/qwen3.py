@@ -9,7 +9,7 @@ from typing import List, Dict, Any
 from .base import ModelInterface
 
 
-class QwenModelInterface(ModelInterface):
+class Qwen3ModelInterface(ModelInterface):
     """
     Model interface for Qwen models.
 
@@ -26,7 +26,8 @@ class QwenModelInterface(ModelInterface):
         Returns:
             System message string
         """
-        return "You are a helpful assistant."
+        # return "You are a helpful assistant."
+        raise NotImplementedError("System message is not used in current implementation.")
 
     def get_assistant_prefix(self) -> str:
         """
@@ -61,14 +62,14 @@ class QwenModelInterface(ModelInterface):
         user_content = f"{question}\n\n{instruction}"
 
         messages = [
-            {"role": "system", "content": self.get_system_message()},
             {"role": "user", "content": user_content},
             {"role": "assistant", "content": answer}
         ]
         return tokenizer.apply_chat_template(
             messages,
             tokenize=False,
-            add_generation_prompt=False
+            add_generation_prompt=False,
+            enable_thinking=False
         )
 
     def build_messages_for_perplexity_generate(self, tokenizer: Any, question: str,
@@ -94,13 +95,13 @@ class QwenModelInterface(ModelInterface):
         user_content = f"{question}\n\n{instruction}"
 
         messages = [
-            {"role": "system", "content": self.get_system_message()},
             {"role": "user", "content": user_content}
         ]
         return tokenizer.apply_chat_template(
             messages,
             tokenize=False,
-            add_generation_prompt=True
+            add_generation_prompt=True,
+            enable_thinking=False
         )
 
     def build_messages_for_compare_directly(self, tokenizer: Any, question: str,
@@ -128,19 +129,19 @@ Provide your judgment IMMEDIATELY without reasoning or explanation. Provide your
 \\boxed{{X}} where X is either 1 or 2."""
 
         messages = [
-            {"role": "system", "content": self.get_system_message()},
             {"role": "user", "content": prompt}
         ]
 
         formatted = tokenizer.apply_chat_template(
             messages,
             tokenize=False,
-            add_generation_prompt=True
+            add_generation_prompt=True,
+            enable_thinking=False
         )
 
         return formatted + "\\box{"
 
-    def build_messages_for_compare_thinking(self, tokenizer: Any, question: str,
+    def build_messages_for_compare_cot(self, tokenizer: Any, question: str,
                                            answer1: str, answer2: str) -> str:
         """
         Build the message structure for comparison with reasoning and apply chat template.
@@ -165,12 +166,12 @@ Please briefly explain your reasoning, and then provide your final decision in t
 \\boxed{{X}} where X is either 1 or 2."""
 
         messages = [
-            {"role": "system", "content": self.get_system_message()},
             {"role": "user", "content": prompt}
         ]
 
         return tokenizer.apply_chat_template(
             messages,
             tokenize=False,
-            add_generation_prompt=True
+            add_generation_prompt=True,
+            enable_thinking=True
         )
