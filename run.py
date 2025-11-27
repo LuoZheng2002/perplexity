@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 import json
 import re
 import math
+import argparse
 from parse_dataset import parse_dataset, prepare_answer_pairs_bilingual
 
 from config import *
@@ -31,7 +32,7 @@ load_dotenv()
 _global_model_name = None
 _global_backend = None
 
-def get_or_create_backend(model_name, device="cuda", backend_type="huggingface", batch_size=8):
+def get_or_create_backend(model_name, device="cuda", backend_type="huggingface", num_gpus=1):
     """
     Get or create a cached model backend.
 
@@ -42,7 +43,7 @@ def get_or_create_backend(model_name, device="cuda", backend_type="huggingface",
         model_name: HuggingFace model name
         device: Device to use ("cuda" or "cpu")
         backend_type: Backend type ("huggingface" or "vllm")
-        batch_size: Batch size for the backend
+        num_gpus: Number of GPUs to use (for batch size calculation)
 
     Returns:
         Cached or newly created AsyncModelBackend instance
@@ -65,8 +66,9 @@ def get_or_create_backend(model_name, device="cuda", backend_type="huggingface",
                 backend_type=backend_type,
                 model=model,
                 tokenizer=tokenizer,
+                model_name=model_name,
                 device=device,
-                max_batch_size=batch_size
+                num_gpus=num_gpus
             )
         else:  # vLLM backend
             from transformers import AutoTokenizer
@@ -75,7 +77,7 @@ def get_or_create_backend(model_name, device="cuda", backend_type="huggingface",
                 backend_type=backend_type,
                 model_name=model_name,
                 tokenizer=tokenizer,
-                max_batch_size=batch_size
+                num_gpus=num_gpus
             )
 
         _global_model_name = model_name
@@ -305,6 +307,14 @@ def compare_results(preferences, perplexities_lang1, perplexities_lang2, lang1, 
 
 
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='LLM as Judge: Exploring the relationship between perplexity and preference')
+    parser.add_argument('--num-gpus', type=int, default=1,
+                        help='Number of GPUs to use for model inference (default: 1)')
+    args = parser.parse_args()
+
+    print(f"Using {args.num_gpus} GPU(s)")
+
     # Create result directory if it doesn't exist
     os.makedirs("result", exist_ok=True)
 
@@ -367,19 +377,17 @@ if __name__ == "__main__":
             case Model.QWEN_3_30B_A3B:
                 display_model_name = "qwen_3_30b_a3b"
 
-        # Get or create backend (uses HuggingFace by default)
+        # Get or create backend (batch size will be calculated automatically)
         backend = get_or_create_backend(
             model_name=model_name,
             device="cuda",
             backend_type="huggingface",
-            batch_size=8
+            num_gpus=args.num_gpus
         )
 
         # Create model interface for model-specific behavior
         model_interface = create_model_interface(model_name)
         print(f"Using model interface: {model_interface.__class__.__name__}")
-
-        batch_size = 8
 
         match config.result_type:
             case ResultType.PREFERENCE_DIRECT:

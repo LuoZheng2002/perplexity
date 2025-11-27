@@ -2,12 +2,35 @@
 Factory functions to create the appropriate model interface and backend based on model name.
 """
 
+import re
 from typing import Any, Optional
 from .base import ModelInterface, AsyncModelBackend
 from .qwen3 import Qwen3ModelInterface
 from .granite import GraniteModelInterface
 from .hf_backend import HuggingFaceBackend
 from .vllm_backend import VLLMBackend
+
+
+def extract_model_size_in_billions(model_name: str) -> Optional[float]:
+    """
+    Extract the model size in billions of parameters from the model name.
+
+    Args:
+        model_name: HuggingFace model name (e.g., "ibm-granite/granite-3.1-8b-instruct", "Qwen/Qwen3-30B-A3B")
+
+    Returns:
+        Model size in billions as a float, or None if size cannot be extracted
+    """
+    # Look for patterns like "8b", "30B", "7b-instruct", etc.
+    # Case-insensitive search for number followed by 'b'
+    pattern = r'(\d+\.?\d*)[bB]'
+    match = re.search(pattern, model_name)
+
+    if match:
+        size_str = match.group(1)
+        return float(size_str)
+
+    return None
 
 
 def create_model_interface(model_name: str) -> ModelInterface:
@@ -64,6 +87,7 @@ def create_model_backend(
     device: str = "cuda",
     max_batch_size: int = 8,
     max_batch_wait: float = 0.05,
+    num_gpus: int = 1,
     **kwargs
 ) -> AsyncModelBackend:
     """
@@ -73,10 +97,11 @@ def create_model_backend(
         backend_type: Type of backend ("huggingface" or "vllm")
         model: Model instance (required for huggingface backend)
         tokenizer: Tokenizer instance (required for both backends)
-        model_name: Model name (required for vllm backend)
+        model_name: Model name (required for vllm backend, optional for huggingface)
         device: Device to use (for huggingface backend)
-        max_batch_size: Maximum batch size (for huggingface backend)
+        max_batch_size: Maximum batch size (default for huggingface backend if not auto-calculated)
         max_batch_wait: Maximum wait time for batching (for huggingface backend)
+        num_gpus: Number of GPUs to use (for batch size calculation in huggingface backend)
         **kwargs: Additional backend-specific arguments
 
     Returns:
@@ -91,7 +116,8 @@ def create_model_backend(
         ...     "huggingface",
         ...     model=model,
         ...     tokenizer=tokenizer,
-        ...     device="cuda"
+        ...     device="cuda",
+        ...     num_gpus=2
         ... )
 
         >>> # Create vLLM backend
@@ -107,11 +133,25 @@ def create_model_backend(
         if model is None or tokenizer is None:
             raise ValueError("HuggingFace backend requires 'model' and 'tokenizer' arguments")
 
+        # Calculate batch size based on model size and num_gpus for HuggingFace backend
+        calculated_batch_size = max_batch_size  # default
+        if model_name is not None:
+            model_size_in_billions = extract_model_size_in_billions(model_name)
+            if model_size_in_billions is not None:
+                # Formula: batch_size * model_size_in_billions = 120 * num_gpus
+                calculated_batch_size = int(120 * num_gpus / model_size_in_billions)
+                print(f"Model size: {model_size_in_billions}B parameters")
+                print(f"Calculated batch size: {calculated_batch_size} (for {num_gpus} GPU(s))")
+            else:
+                print(f"Warning: Could not extract model size from {model_name}, using default batch size {max_batch_size}")
+        else:
+            print(f"Warning: model_name not provided, using default batch size {max_batch_size}")
+
         return HuggingFaceBackend(
             model=model,
             tokenizer=tokenizer,
             device=device,
-            max_batch_size=max_batch_size,
+            max_batch_size=calculated_batch_size,
             max_batch_wait=max_batch_wait
         )
 
