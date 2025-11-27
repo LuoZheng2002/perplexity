@@ -379,6 +379,8 @@ if __name__ == "__main__":
         model_interface = create_model_interface(model_name)
         print(f"Using model interface: {model_interface.__class__.__name__}")
 
+        batch_size = 8
+
         match config.result_type:
             case ResultType.PREFERENCE_DIRECT:
                 # Process pairs for preference_direct
@@ -434,5 +436,4 @@ if __name__ == "__main__":
             case _:
                 print(f"Unknown result type: {config.result_type}")
                 raise ValueError(f"Unknown result type: {config.result_type}")
-
         print("Collected results for configuration: ", config)

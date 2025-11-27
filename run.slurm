@@ -2,11 +2,11 @@
 #SBATCH --job-name=run       # Job name
 #SBATCH --output=run_%j.out        # Standard output log (%j = job ID)
 #SBATCH --error=run_%j.err         # Error log
-#SBATCH --time=00:20:00                 # Max runtime (HH:MM:SS)
+#SBATCH --time=01:00:00                 # Max runtime (HH:MM:SS)
 # #SBATCH --partition=gpu                  # Partition/queue with GPU
 # #SBATCH --mail-type=BEGIN,END,FAIL
 # #SBATCH --mail-user=luozheng@usc.edu
-#SBATCH --gres=gpu:1                     # Request 1 GPU
+#SBATCH --gres=gpu:1                     # Request 1 GPUs
 #SBATCH --cpus-per-task=4                # CPU cores
 #SBATCH --mem=16G                        # RAM
 #SBATCH --account=bdns-delta-gpu    # Your Slurm account/project
