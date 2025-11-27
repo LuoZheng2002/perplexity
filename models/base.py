@@ -93,9 +93,7 @@ class ModelInterface(ABC):
         Build the message structure for direct comparison and apply chat template.
 
         This method builds a prompt asking the model to compare two answers,
-        applies the chat template with add_generation_prompt=True, and appends
-        "\\box{" to encourage the model to output the answer directly in the
-        expected format.
+        applies the chat template with add_generation_prompt=True.
 
         Args:
             tokenizer: The model's tokenizer
@@ -104,7 +102,7 @@ class ModelInterface(ABC):
             answer2: The second answer to compare
 
         Returns:
-            Formatted conversation string after applying chat template with "\\box{" appended
+            Formatted conversation string after applying chat template without prefill
         """
         pass
 

@@ -137,8 +137,8 @@ Provide your judgment IMMEDIATELY without reasoning or explanation. Provide your
             tokenize=False,
             add_generation_prompt=True
         )
-
-        return formatted + "\\box{"
+        # do not use prefill
+        return formatted
 
     def build_messages_for_compare_cot(self, tokenizer: Any, question: str,
                                            answer1: str, answer2: str) -> str:
