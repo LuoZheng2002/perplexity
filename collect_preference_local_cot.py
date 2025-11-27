@@ -1,40 +1,55 @@
 import json
 import os
 import re
+import asyncio
 
 from config import ResultType
 
 
 def collect_preference_local_cot(
         pairs,
-        model,
-        tokenizer,
-        model_name,
+        backend,
         model_interface,
         output_file="preferences_local_cot.jsonl",
-        device="cuda",
-        batch_size=1):
+        batch_size=8):
     """
     Use a local LLM to judge which answer is better with reasoning.
 
-    This function prompts the model to analyze and explain its reasoning before
-    making a decision. The model generates a response that includes its thought
-    process and final answer in \\boxed{} format.
+    This function uses concurrent async requests to prompt the model to analyze
+    and explain its reasoning before making a decision. The model generates a
+    response that includes its thought process and final answer in \\boxed{} format.
 
     Args:
         pairs: List of question-answer pairs
-        model: Pre-loaded model instance
-        tokenizer: Pre-loaded tokenizer instance
-        model_name: Hugging Face model name (for logging/identification)
+        backend: AsyncModelBackend instance (HuggingFace or vLLM)
         model_interface: ModelInterface instance for model-specific behavior
         output_file: Output file for results
-        device: Device to use ("cuda" or "cpu")
-        batch_size: Number of samples to process in parallel (default: 1)
+        batch_size: Number of concurrent requests (default: 8)
 
     Returns:
-        List of preferences (1 if answer1 is better, 2 if answer2 is better)
+        None (results are written to output_file)
     """
-    import torch
+
+    # Run async implementation
+    asyncio.run(_collect_preference_local_cot_async(
+        pairs=pairs,
+        backend=backend,
+        model_interface=model_interface,
+        output_file=output_file,
+        batch_size=batch_size
+    ))
+
+
+async def _collect_preference_local_cot_async(
+        pairs,
+        backend,
+        model_interface,
+        output_file,
+        batch_size):
+    """Async implementation of collect_preference_local_cot."""
+
+    tokenizer = backend.tokenizer
+    model_name = getattr(backend, 'model_name', 'unknown')
 
     # Load already processed samples if file exists
     processed_indices = set()
@@ -54,9 +69,9 @@ def collect_preference_local_cot(
         print("All samples already processed. Exiting.")
         return
 
-    print(f"\nCollecting preferences with reasoning using local LLM: {model_name}")
+    print(f"\nCollecting preferences with reasoning using local LLM")
     print(f"Results will be written to {output_file}")
-    print(f"Batch size: {batch_size}")
+    print(f"Concurrent requests: {batch_size}")
 
     # Collect unprocessed samples
     unprocessed_samples = []
@@ -67,145 +82,83 @@ def collect_preference_local_cot(
     total_to_process = len(unprocessed_samples)
     print(f"Samples to process: {total_to_process}")
 
-    # Open file in append mode
-    with open(output_file, 'a', encoding='utf-8') as f:
-        # Process in batches
-        for batch_start in range(0, len(unprocessed_samples), batch_size):
-            batch_end = min(batch_start + batch_size, len(unprocessed_samples))
-            batch = unprocessed_samples[batch_start:batch_end]
+    # Process samples with concurrency control
+    semaphore = asyncio.Semaphore(batch_size)
+    lock = asyncio.Lock()
+    processed_count = 0
 
-            # Prepare batch data
-            batch_indices = [item[0] for item in batch]
-            batch_pairs = [item[1] for item in batch]
+    async def process_single_sample(i, pair):
+        """Process a single sample asynchronously."""
+        nonlocal processed_count
 
-            # Save original padding side and set to left for decoder-only models
-            original_padding_side = tokenizer.padding_side
-
+        async with semaphore:
             try:
-                # Build formatted prompts for all samples in batch
-                formatted_prompts = []
-                for pair in batch_pairs:
-                    formatted_prompt = model_interface.build_messages_for_compare_cot(
-                        tokenizer,
-                        pair['question'],
-                        pair['answer1'],
-                        pair['answer2']
-                    )
-                    formatted_prompts.append(formatted_prompt)
-
-                # Set padding side to left for decoder-only models
-                tokenizer.padding_side = 'left'
-
-                # Tokenize the batch with padding
-                inputs = tokenizer(
-                    formatted_prompts,
-                    return_tensors="pt",
-                    truncation=True,
-                    max_length=1024,
-                    padding=True
+                # Build formatted prompt
+                formatted_prompt = model_interface.build_messages_for_compare_cot(
+                    tokenizer,
+                    pair['question'],
+                    pair['answer1'],
+                    pair['answer2']
                 )
-                inputs = {k: v.to(device) for k, v in inputs.items()}
 
-                # Generate responses for the batch
-                with torch.no_grad():
-                    output_ids = model.generate(
-                        **inputs,
-                        max_new_tokens=500,  # More tokens to allow for reasoning
-                        temperature=0.0,
-                        top_p=1.0,
-                        do_sample=False,
-                        pad_token_id=tokenizer.pad_token_id,
-                        eos_token_id=tokenizer.eos_token_id
-                    )
+                # Generate response
+                result = await backend.generate_async(
+                    formatted_prompt,
+                    max_new_tokens=500,
+                    temperature=0.0,
+                    do_sample=False
+                )
 
-                # Process each output in the batch
-                for batch_idx, (i, pair) in enumerate(batch):
-                    try:
-                        # Decode the output (skip the input tokens)
-                        input_length = inputs['input_ids'][batch_idx].shape[0]
-                        raw_answer = tokenizer.decode(
-                            output_ids[batch_idx][input_length:],
-                            skip_special_tokens=True
-                        ).strip()
+                raw_answer = result.generated_text
 
-                        # Extract the boxed answer
-                        match = re.search(r'\\boxed\{(\d+)\}', raw_answer)
-                        error_msg = None
+                # Extract the boxed answer
+                match = re.search(r'\\boxed\{(\d+)\}', raw_answer)
+                error_msg = None
 
-                        if match:
-                            preference = int(match.group(1))
-                            if preference not in [1, 2]:
-                                error_msg = f"Invalid preference value in boxed answer: {preference}"
-                                preference = 0
-                        else:
-                            # Could not find boxed answer
-                            error_msg = "LLM did not include decision in \\boxed{} format"
-                            preference = 0
-                            print(f"  Warning: Could not parse answer for sample {i}, setting preference to 0")
+                if match:
+                    preference = int(match.group(1))
+                    if preference not in [1, 2]:
+                        error_msg = f"Invalid preference value in boxed answer: {preference}"
+                        preference = 0
+                else:
+                    error_msg = "LLM did not include decision in \\boxed{} format"
+                    preference = 0
+                    print(f"  Warning: Could not parse answer for sample {i}, setting preference to 0")
 
-                        # Write result immediately
-                        result = {
-                            'index': i,
-                            'preference': preference,
-                            'reasoning': raw_answer,
-                            'question': pair['question'],
-                            'answer1': pair['answer1'],
-                            'answer2': pair['answer2'],
-                            'lang1': pair['lang1'],
-                            'lang2': pair['lang2'],
-                            'subject': pair.get('subject', ''),
-                            'model': model_name
-                        }
+                # Write result
+                output_result = {
+                    'index': i,
+                    'preference': preference,
+                    'reasoning': raw_answer,
+                    'question': pair['question'],
+                    'answer1': pair['answer1'],
+                    'answer2': pair['answer2'],
+                    'lang1': pair['lang1'],
+                    'lang2': pair['lang2'],
+                    'subject': pair.get('subject', ''),
+                    'model': model_name
+                }
 
-                        if error_msg:
-                            result['error'] = error_msg
+                if error_msg:
+                    output_result['error'] = error_msg
 
-                        f.write(json.dumps(result, ensure_ascii=False) + '\n')
+                async with lock:
+                    with open(output_file, 'a', encoding='utf-8') as f:
+                        f.write(json.dumps(output_result, ensure_ascii=False) + '\n')
                         f.flush()
 
-                        results_dict[i] = preference
+                    results_dict[i] = preference
+                    processed_count += 1
 
-                    except Exception as e:
-                        print(f"Error processing sample {i} in batch: {e}")
-                        exit(1)
-                        # print(f"Error processing sample {i} in batch: {e}")
-                        # # Write error result
-                        # result = {
-                        #     'index': i,
-                        #     'preference': None,
-                        #     'reasoning': None,
-                        #     'error': str(e),
-                        #     'model': model_name,
-                        #     'subject': pair.get('subject', '')
-                        # }
-                        # f.write(json.dumps(result, ensure_ascii=False) + '\n')
-                        # f.flush()
-                        # results_dict[i] = None
-
-                # Progress update after each batch
-                if len(results_dict) % 5 == 0 or batch_end == len(unprocessed_samples):
-                    print(f"  Processed {len(results_dict)}/{len(pairs)} samples")
+                    if processed_count % 5 == 0 or processed_count == total_to_process:
+                        print(f"  Processed {processed_count}/{total_to_process} samples")
 
             except Exception as e:
-                print(f"Error processing batch starting at index {batch_start}: {e}")
-                exit(1)
-                # # Write error results for all samples in the failed batch
-                # for i, pair in batch:
-                #     result = {
-                #         'index': i,
-                #         'preference': None,
-                #         'reasoning': None,
-                #         'error': f"Batch error: {str(e)}",
-                #         'model': model_name,
-                #         'subject': pair.get('subject', '')
-                #     }
-                #     f.write(json.dumps(result, ensure_ascii=False) + '\n')
-                #     f.flush()
-                #     results_dict[i] = None
+                print(f"Error processing sample {i}: {e}")
+                raise
 
-            finally:
-                # Always restore original padding side
-                tokenizer.padding_side = original_padding_side
+    # Process all unprocessed samples concurrently
+    tasks = [process_single_sample(i, pair) for i, pair in unprocessed_samples]
+    await asyncio.gather(*tasks)
 
-    # Build final list in order
     print("\nPreference collection completed.")

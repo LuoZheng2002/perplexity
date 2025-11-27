@@ -18,7 +18,7 @@ import math
 from parse_dataset import parse_dataset, prepare_answer_pairs_bilingual
 
 from config import *
-from models import create_model_interface
+from models import create_model_interface, create_model_backend
 
 # Set UTF-8 encoding for console output (Windows fix)
 if sys.platform == 'win32':
@@ -26,6 +26,65 @@ if sys.platform == 'win32':
 
 # Load environment variables
 load_dotenv()
+
+# Global backend cache
+_global_model_name = None
+_global_backend = None
+
+def get_or_create_backend(model_name, device="cuda", backend_type="huggingface", batch_size=8):
+    """
+    Get or create a cached model backend.
+
+    The backend is cached globally and reused if the model name matches.
+    If the model name changes, the old backend is shut down and a new one is created.
+
+    Args:
+        model_name: HuggingFace model name
+        device: Device to use ("cuda" or "cpu")
+        backend_type: Backend type ("huggingface" or "vllm")
+        batch_size: Batch size for the backend
+
+    Returns:
+        Cached or newly created AsyncModelBackend instance
+    """
+    global _global_model_name, _global_backend
+
+    # Check if we need to create a new backend
+    if _global_model_name != model_name or _global_backend is None:
+        print(f"Creating new backend for model: {model_name}")
+
+        # Shutdown old backend if it exists
+        if _global_backend is not None:
+            import asyncio
+            asyncio.run(_global_backend.shutdown())
+
+        # For HuggingFace backend, we need to initialize the model
+        if backend_type.lower() in ["huggingface", "hf"]:
+            model, tokenizer = initialize_model(model_name, device)
+            _global_backend = create_model_backend(
+                backend_type=backend_type,
+                model=model,
+                tokenizer=tokenizer,
+                device=device,
+                max_batch_size=batch_size
+            )
+        else:  # vLLM backend
+            from transformers import AutoTokenizer
+            tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+            _global_backend = create_model_backend(
+                backend_type=backend_type,
+                model_name=model_name,
+                tokenizer=tokenizer,
+                max_batch_size=batch_size
+            )
+
+        _global_model_name = model_name
+        print(f"Backend created successfully")
+    else:
+        print(f"Reusing cached backend for model: {model_name}")
+
+    return _global_backend
+
 
 def initialize_model(model_name, device="cuda"):
     """
@@ -244,9 +303,6 @@ def compare_results(preferences, perplexities_lang1, perplexities_lang2, lang1, 
             print(f"  Perplexity method chose: {lang1 if perplexity_preferences[i] == 1 else lang2}")
             print(f"  Match: {'✓' if preferences[i] == perplexity_preferences[i] else '✗'}")
 
-_global_model_name = None
-_global_model = None
-_global_tokenizer = None
 
 if __name__ == "__main__":
     # Create result directory if it doesn't exist
@@ -295,7 +351,7 @@ if __name__ == "__main__":
         print(f"Created {len(pairs_both_correct)} pairs for {first_lang}_correct_{second_lang}_correct")
         print(f"Created {len(pairs_both_incorrect)} pairs for {first_lang}_incorrect_{second_lang}_incorrect")
 
-        # Get or create model and tokenizer with caching
+        # Get or create backend with caching
         model_name = config.model.value
         match config.model:
             case Model.GRANITE_3_1_8B_INSTRUCT:
@@ -311,18 +367,13 @@ if __name__ == "__main__":
             case Model.QWEN_3_30B_A3B:
                 display_model_name = "qwen_3_30b_a3b"
 
-        if _global_model_name == model_name:
-            # Reuse cached model and tokenizer
-            print(f"Reusing cached model: {model_name}")
-            model = _global_model
-            tokenizer = _global_tokenizer
-        else:
-            # Initialize new model and tokenizer, update cache
-            print(f"Initializing new model: {model_name}")
-            model, tokenizer = initialize_model(model_name=model_name, device="cuda")
-            _global_model_name = model_name
-            _global_model = model
-            _global_tokenizer = tokenizer
+        # Get or create backend (uses HuggingFace by default)
+        backend = get_or_create_backend(
+            model_name=model_name,
+            device="cuda",
+            backend_type="huggingface",
+            batch_size=8
+        )
 
         # Create model interface for model-specific behavior
         model_interface = create_model_interface(model_name)
@@ -341,12 +392,9 @@ if __name__ == "__main__":
                     os.makedirs(output_dir, exist_ok=True)
                     collect_preference_local_direct(
                         pairs=pairs,
-                        model=model,
-                        tokenizer=tokenizer,
-                        model_name=model_name,
+                        backend=backend,
                         model_interface=model_interface,
-                        output_file=f"{output_dir}/{dataset_suffix}.jsonl",
-                        device="cuda"
+                        output_file=f"{output_dir}/{dataset_suffix}.jsonl"
                     )
 
             case ResultType.PREFERENCE_COT:
@@ -361,12 +409,9 @@ if __name__ == "__main__":
                     os.makedirs(output_dir, exist_ok=True)
                     collect_preference_local_cot(
                         pairs=pairs,
-                        model=model,
-                        tokenizer=tokenizer,
-                        model_name=model_name,
+                        backend=backend,
                         model_interface=model_interface,
                         output_file=f"{output_dir}/{dataset_suffix}.jsonl",
-                        device="cuda",
                         batch_size=1
                     )
 
@@ -382,12 +427,9 @@ if __name__ == "__main__":
                     os.makedirs(output_dir, exist_ok=True)
                     collect_perplexity_local(
                         entries=entries,
-                        model=model,
-                        tokenizer=tokenizer,
-                        model_name=model_name,
+                        backend=backend,
                         model_interface=model_interface,
-                        output_file=f"{output_dir}/{entry_suffix}.jsonl",
-                        device="cuda"
+                        output_file=f"{output_dir}/{entry_suffix}.jsonl"
                     )
             case _:
                 print(f"Unknown result type: {config.result_type}")

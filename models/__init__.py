@@ -17,14 +17,22 @@ Usage:
     assistant_prefix = interface.get_assistant_prefix()
 """
 
-from .base import ModelInterface
+from .base import ModelInterface, AsyncModelBackend, ForwardResult, GenerationResult
 from .qwen3 import Qwen3ModelInterface
 from .granite import GraniteModelInterface
-from .factory import create_model_interface
+from .factory import create_model_interface, create_model_backend
+from .hf_backend import HuggingFaceBackend
+from .vllm_backend import VLLMBackend
 
 __all__ = [
     'ModelInterface',
     'Qwen3ModelInterface',
     'GraniteModelInterface',
     'create_model_interface',
+    'AsyncModelBackend',
+    'ForwardResult',
+    'GenerationResult',
+    'HuggingFaceBackend',
+    'VLLMBackend',
+    'create_model_backend',
 ]

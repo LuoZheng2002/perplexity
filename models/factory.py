@@ -1,10 +1,13 @@
 """
-Factory function to create the appropriate model interface based on model name.
+Factory functions to create the appropriate model interface and backend based on model name.
 """
 
-from .base import ModelInterface
+from typing import Any, Optional
+from .base import ModelInterface, AsyncModelBackend
 from .qwen3 import Qwen3ModelInterface
 from .granite import GraniteModelInterface
+from .hf_backend import HuggingFaceBackend
+from .vllm_backend import VLLMBackend
 
 
 def create_model_interface(model_name: str) -> ModelInterface:
@@ -51,3 +54,86 @@ def create_model_interface(model_name: str) -> ModelInterface:
         f"To add support for this model, create a new ModelInterface implementation "
         f"in the models/ directory and update the factory function."
     )
+
+
+def create_model_backend(
+    backend_type: str,
+    model: Any = None,
+    tokenizer: Any = None,
+    model_name: Optional[str] = None,
+    device: str = "cuda",
+    max_batch_size: int = 8,
+    max_batch_wait: float = 0.05,
+    **kwargs
+) -> AsyncModelBackend:
+    """
+    Create the appropriate async model backend.
+
+    Args:
+        backend_type: Type of backend ("huggingface" or "vllm")
+        model: Model instance (required for huggingface backend)
+        tokenizer: Tokenizer instance (required for both backends)
+        model_name: Model name (required for vllm backend)
+        device: Device to use (for huggingface backend)
+        max_batch_size: Maximum batch size (for huggingface backend)
+        max_batch_wait: Maximum wait time for batching (for huggingface backend)
+        **kwargs: Additional backend-specific arguments
+
+    Returns:
+        AsyncModelBackend instance
+
+    Raises:
+        ValueError: If backend_type is not recognized or required args are missing
+
+    Examples:
+        >>> # Create HuggingFace backend
+        >>> backend = create_model_backend(
+        ...     "huggingface",
+        ...     model=model,
+        ...     tokenizer=tokenizer,
+        ...     device="cuda"
+        ... )
+
+        >>> # Create vLLM backend
+        >>> backend = create_model_backend(
+        ...     "vllm",
+        ...     model_name="Qwen/Qwen2.5-7B-Instruct",
+        ...     tokenizer=tokenizer
+        ... )
+    """
+    backend_type_lower = backend_type.lower()
+
+    if backend_type_lower == "huggingface" or backend_type_lower == "hf":
+        if model is None or tokenizer is None:
+            raise ValueError("HuggingFace backend requires 'model' and 'tokenizer' arguments")
+
+        return HuggingFaceBackend(
+            model=model,
+            tokenizer=tokenizer,
+            device=device,
+            max_batch_size=max_batch_size,
+            max_batch_wait=max_batch_wait
+        )
+
+    elif backend_type_lower == "vllm":
+        if model_name is None or tokenizer is None:
+            raise ValueError("vLLM backend requires 'model_name' and 'tokenizer' arguments")
+
+        # Extract vLLM-specific kwargs
+        tensor_parallel_size = kwargs.get('tensor_parallel_size', 1)
+        gpu_memory_utilization = kwargs.get('gpu_memory_utilization', 0.9)
+        max_model_len = kwargs.get('max_model_len', None)
+
+        return VLLMBackend(
+            model_name=model_name,
+            tokenizer=tokenizer,
+            tensor_parallel_size=tensor_parallel_size,
+            gpu_memory_utilization=gpu_memory_utilization,
+            max_model_len=max_model_len
+        )
+
+    else:
+        raise ValueError(
+            f"Unknown backend type: {backend_type}. "
+            f"Supported backends are: 'huggingface' (or 'hf'), 'vllm'."
+        )

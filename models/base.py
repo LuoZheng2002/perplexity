@@ -6,7 +6,8 @@ must follow to handle chat templates, message formatting, and token position fin
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
+import asyncio
 
 
 class ModelInterface(ABC):
@@ -161,3 +162,109 @@ class ModelInterface(ABC):
             f"Assistant prefix '{assistant_prefix}' not found in tokenized conversation. "
             f"This might indicate a mismatch between the model interface and the actual model."
         )
+
+
+class ForwardResult:
+    """Result from a forward pass inference."""
+    def __init__(self, logits: Any, input_ids: List[int]):
+        """
+        Args:
+            logits: Tensor of shape [seq_len, vocab_size] containing logits for each position
+            input_ids: List of token IDs that were input to the model
+        """
+        self.logits = logits
+        self.input_ids = input_ids
+
+
+class GenerationResult:
+    """Result from a text generation inference."""
+    def __init__(
+        self,
+        generated_text: str,
+        generated_ids: List[int],
+        full_text: str,
+        full_ids: List[int],
+        logits: Optional[Any] = None
+    ):
+        """
+        Args:
+            generated_text: The decoded generated text (without input prompt)
+            generated_ids: List of token IDs for the generated text only
+            full_text: The complete text (prompt + generated)
+            full_ids: List of token IDs for the complete sequence (prompt + generated)
+            logits: Logits/logprobs for generated tokens (format varies by backend):
+                    - HuggingFace: tuple of tensors, one per generated token [vocab_size]
+                    - vLLM: list of dicts with logprob information per token
+        """
+        self.generated_text = generated_text
+        self.generated_ids = generated_ids
+        self.full_text = full_text
+        self.full_ids = full_ids
+        self.logits = logits
+
+
+class AsyncModelBackend(ABC):
+    """
+    Abstract base class for async model backends that handle inference.
+
+    Different backends (HuggingFace, vLLM) have different batching strategies.
+    This interface provides low-level primitives (forward pass, generation) that
+    allow concurrent request submission while optimizing batch processing.
+
+    Backends should automatically batch concurrent requests for efficiency.
+    """
+
+    @abstractmethod
+    async def forward_async(
+        self,
+        formatted_prompt: str,
+        max_length: int = 2048
+    ) -> ForwardResult:
+        """
+        Asynchronously run forward pass on a formatted prompt.
+
+        This method accepts a single request and returns logits for the sequence.
+        The backend may batch multiple concurrent requests internally for efficiency.
+
+        Args:
+            formatted_prompt: The formatted prompt text (after applying chat template)
+            max_length: Maximum sequence length for tokenization
+
+        Returns:
+            ForwardResult containing logits and input_ids
+        """
+        pass
+
+    @abstractmethod
+    async def generate_async(
+        self,
+        formatted_prompt: str,
+        max_new_tokens: int = 100,
+        temperature: float = 0.0,
+        do_sample: bool = False
+    ) -> GenerationResult:
+        """
+        Asynchronously generate text from a formatted prompt.
+
+        This method accepts a single request and returns generated text.
+        The backend may batch multiple concurrent requests internally for efficiency.
+
+        Args:
+            formatted_prompt: The formatted prompt text (after applying chat template)
+            max_new_tokens: Maximum number of new tokens to generate
+            temperature: Sampling temperature (0.0 for greedy decoding)
+            do_sample: Whether to use sampling
+
+        Returns:
+            GenerationResult containing generated text and token IDs
+        """
+        pass
+
+    @abstractmethod
+    async def shutdown(self):
+        """
+        Cleanup resources and shutdown the backend.
+
+        Should be called when inference is complete to properly release resources.
+        """
+        pass
