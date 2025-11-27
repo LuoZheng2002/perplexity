@@ -13,18 +13,25 @@ def collect_preference_local_direct(
         output_file="preferences_local.jsonl",
         batch_size=8):
     """
-    Use a local LLM to judge which answer is better by comparing log probabilities.
+    Use a local LLM to judge which answer is better by comparing logits.
 
-    This function uses concurrent async requests to the model backend to compute
-    log probabilities for choosing answer 1 vs answer 2. The preference is
-    determined by which answer has the higher log probability.
+    This function uses concurrent async requests to the model backend to generate
+    responses. The preference is determined by comparing the log probabilities
+    of tokens "1" and "2" at the position immediately after the "\boxed{" prefix.
 
-    IMPORTANT: This function ONLY supports HuggingFace backend because it requires
-    forward pass operations to get log probabilities, which vLLM does not support.
+    The approach:
+    1. Generate response with the prompt asking for \boxed{X} format
+    2. Tokenize "\boxed{" to find the prefix length
+    3. Extract logits at position prefix_length (the answer position)
+    4. Compare log probabilities of tokens "1" and "2"
+    5. Select the token with higher log probability as the preference
+
+    The generated text is saved for reference but not used for decision-making.
+    Errors are tracked if logit extraction fails.
 
     Args:
         pairs: List of question-answer pairs
-        backend: AsyncModelBackend instance (must be HuggingFace backend)
+        backend: AsyncModelBackend instance (HuggingFace or vLLM)
         model_interface: ModelInterface instance for model-specific behavior
         output_file: Output file for results
         batch_size: Number of concurrent requests (default: 8)
@@ -108,30 +115,86 @@ async def _collect_preference_local_direct_async(
                     pair['answer2']
                 )
 
-                # Run forward pass
-                result = await backend.forward_async(formatted_prompt, max_length=1024)
+                # Generate response from model
+                result = await backend.generate_async(
+                    formatted_prompt,
+                    max_new_tokens=50,
+                    temperature=0.0,
+                    do_sample=False
+                )
 
-                # Extract logits for the last token
-                logits = result.logits  # [seq_len, vocab_size]
-                next_token_logits = logits[-1, :]  # [vocab_size]
+                generated_text = result.generated_text.strip()
 
-                # Compute log probabilities
-                log_probs = torch.nn.functional.log_softmax(next_token_logits, dim=-1)
+                # Initialize variables
+                error = None
+                preference = None
+                log_prob_1 = None
+                log_prob_2 = None
+                log_prob_diff = None
 
-                # Extract log probabilities for tokens "1" and "2"
-                log_prob_1 = log_probs[token_1].item()
-                log_prob_2 = log_probs[token_2].item()
+                # Determine preference directly from logits
+                try:
+                    # Tokenize the prefix "\boxed{" to find its length
+                    prefix_tokens = tokenizer.encode('\\boxed{', add_special_tokens=False)
+                    prefix_length = len(prefix_tokens)
 
-                # Calculate difference
-                log_prob_diff = log_prob_1 - log_prob_2
+                    # Check what token was actually generated at the answer position
+                    if prefix_length < len(result.generated_ids):
+                        generated_token = result.generated_ids[prefix_length]
+                        if generated_token != token_1 and generated_token != token_2:
+                            error = "The model generates preference other than 1 or 2"
 
-                # Determine preference
-                preference = 1 if log_prob_1 > log_prob_2 else 2
+                    # The answer token should be at position prefix_length in the generated sequence
+                    # result.logits is a tuple of tensors (HuggingFace) or list of dicts (vLLM)
+                    if isinstance(result.logits, tuple):
+                        # HuggingFace backend: tuple of tensors, one per generated token
+                        if prefix_length < len(result.logits):
+                            answer_logits = result.logits[prefix_length]  # [vocab_size]
+
+                            # Compute log probabilities
+                            log_probs = torch.nn.functional.log_softmax(answer_logits, dim=-1)
+
+                            # Extract log probabilities for tokens "1" and "2"
+                            log_prob_1 = log_probs[token_1].item()
+                            log_prob_2 = log_probs[token_2].item()
+                            log_prob_diff = log_prob_1 - log_prob_2
+
+                            # Determine preference based on logits (only if no error)
+                            if not error:
+                                preference = 1 if log_prob_1 > log_prob_2 else 2
+                        else:
+                            error = f"Prefix length {prefix_length} exceeds generated tokens {len(result.logits)}"
+                    elif isinstance(result.logits, list):
+                        # vLLM backend: list of dicts with logprob information
+                        # Each element is {token_id: Logprob object}
+                        if prefix_length < len(result.logits):
+                            answer_logprobs_dict = result.logits[prefix_length]
+                            if token_1 in answer_logprobs_dict and token_2 in answer_logprobs_dict:
+                                # Extract logprob value from Logprob object
+                                # Logprob object has a 'logprob' attribute
+                                logprob_obj_1 = answer_logprobs_dict[token_1]
+                                logprob_obj_2 = answer_logprobs_dict[token_2]
+                                log_prob_1 = logprob_obj_1.logprob if hasattr(logprob_obj_1, 'logprob') else float(logprob_obj_1)
+                                log_prob_2 = logprob_obj_2.logprob if hasattr(logprob_obj_2, 'logprob') else float(logprob_obj_2)
+                                log_prob_diff = log_prob_1 - log_prob_2
+
+                                # Determine preference based on logits (only if no error)
+                                if not error:
+                                    preference = 1 if log_prob_1 > log_prob_2 else 2
+                            else:
+                                error = f"Tokens 1 or 2 not found in logprobs dict at position {prefix_length}"
+                        else:
+                            error = f"Prefix length {prefix_length} exceeds generated tokens {len(result.logits)}"
+                except Exception as e:
+                    error = f"Could not extract logits: {e}"
+                    print(f"Warning: Could not extract logits for sample {i}: {e}")
 
                 # Write result
                 output_result = {
                     'index': i,
                     'preference': preference,
+                    'generated_text': generated_text,
+                    'error': error,
                     'log_prob_1': log_prob_1,
                     'log_prob_2': log_prob_2,
                     'log_prob_diff': log_prob_diff,
